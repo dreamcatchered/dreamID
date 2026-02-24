@@ -1,0 +1,930 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="docs-wrapper">
+    <div class="docs-container">
+        <header class="docs-header">
+            <a href="{{ url_for('index') }}" style="display: inline-flex; align-items: center; gap: 8px; color: var(--text-main); text-decoration: none; margin-bottom: 24px;">
+                <i class="ph ph-arrow-left" style="font-size: 18px;"></i>
+                <span style="font-size: 14px; font-weight: 500;">Назад в дашборд</span>
+            </a>
+            <h1 style="font-size: 48px; font-weight: 700; margin-bottom: 12px; line-height: 1.1;">dreamID SSO</h1>
+            <p style="font-size: 18px; color: var(--text-muted); margin-bottom: 40px;">Документация по интеграции единой системы авторизации</p>
+        </header>
+
+        <div class="docs-content">
+            <!-- Overview -->
+            <section class="docs-section">
+                <h2 class="section-title">Обзор</h2>
+                <p class="section-text">
+                    dreamID SSO — это единая система авторизации для всех сервисов экосистемы dreamPartners. 
+                    Реализует стандартный OAuth 2.0 Authorization Code flow, обеспечивая безопасный и удобный вход пользователей.
+                </p>
+            </section>
+
+            <!-- Quick Start -->
+            <section class="docs-section">
+                <h2 class="section-title">Быстрый старт</h2>
+                <div class="code-block">
+                    <div class="code-header">
+                        <span>Пример интеграции</span>
+                    </div>
+                    <pre><code>// 1. Редирект пользователя на авторизацию
+const authUrl = `https://auth.dreampartners.online/sso?
+    redirect_uri=${encodeURIComponent('https://your-app.com/callback')}&
+    client_id=your_client_id&
+    state=random_state_string`;
+
+window.location.href = authUrl;
+
+// 2. Обработка callback на вашем сервере
+// GET /callback?code=AUTHORIZATION_CODE&state=random_state_string
+
+// 3. Обмен кода на токен
+const response = await fetch('https://auth.dreampartners.online/api/sso/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+        code: 'AUTHORIZATION_CODE',
+        client_id: 'your_client_id',
+        client_secret: 'your_client_secret'
+    })
+});
+
+const { access_token } = await response.json();
+
+// 4. Получение данных пользователя
+const userResponse = await fetch('https://auth.dreampartners.online/api/sso/user', {
+    headers: { 'Authorization': `Bearer ${access_token}` }
+});
+
+const user = await userResponse.json();
+// { 
+//   id, username, phone, avatar,
+//   first_name, last_name, email, 
+//   country, city, telegram_username 
+// }</code></pre>
+                </div>
+            </section>
+
+            <!-- Endpoints -->
+            <section class="docs-section">
+                <h2 class="section-title">API Endpoints</h2>
+                
+                <div class="endpoint-card">
+                    <div class="endpoint-header">
+                        <span class="method-badge get">GET</span>
+                        <code class="endpoint-path">/sso</code>
+                    </div>
+                    <p class="endpoint-desc">Инициация OAuth 2.0 авторизации</p>
+                    <div class="params">
+                        <strong>Параметры:</strong>
+                        <ul>
+                            <li><code>redirect_uri</code> (required) — URI для редиректа после авторизации</li>
+                            <li><code>client_id</code> (optional) — ID вашего клиента</li>
+                            <li><code>state</code> (optional) — строка для защиты от CSRF</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="endpoint-card">
+                    <div class="endpoint-header">
+                        <span class="method-badge post">POST</span>
+                        <code class="endpoint-path">/api/sso/token</code>
+                    </div>
+                    <p class="endpoint-desc">Обмен authorization code на access token</p>
+                    <div class="params">
+                        <strong>Body (JSON):</strong>
+                        <ul>
+                            <li><code>code</code> (required) — authorization code</li>
+                            <li><code>client_id</code> (optional) — ID вашего клиента</li>
+                            <li><code>client_secret</code> (required, если указан client_id)</li>
+                        </ul>
+                        <strong>Response:</strong>
+                        <pre class="response-example"><code>{
+  "access_token": "token_string",
+  "token_type": "Bearer",
+  "expires_in": 2592000
+}</code></pre>
+                    </div>
+                </div>
+
+                <div class="endpoint-card">
+                    <div class="endpoint-header">
+                        <span class="method-badge get">GET</span>
+                        <code class="endpoint-path">/api/sso/user</code>
+                    </div>
+                    <p class="endpoint-desc">Получение данных пользователя по токену</p>
+                    <div class="params">
+                        <strong>Headers:</strong>
+                        <ul>
+                            <li><code>Authorization: Bearer {access_token}</code></li>
+                        </ul>
+                        <strong>Response:</strong>
+                        <pre class="response-example"><code>{
+  "id": 123,
+  "username": "user.dream",
+  "phone": "+79991234567",
+  "avatar": "https://example.com/avatar.jpg",
+  "first_name": "Иван",
+  "last_name": "Иванов",
+  "email": "user@example.com",
+  "country": "Россия",
+  "city": "Москва",
+  "telegram_username": "ivan_ivanov"
+}</code></pre>
+                        <p class="section-text" style="margin-top: 12px; font-size: 14px; color: var(--text-muted);">
+                            <strong>Примечание:</strong> Все поля кроме <code>id</code> и <code>username</code> опциональны и могут быть <code>null</code>, если пользователь их не заполнил.
+                        </p>
+                        <p class="section-text" style="margin-top: 8px; font-size: 14px; color: var(--text-muted);">
+                            <strong>Автоматическая синхронизация:</strong> Поле <code>telegram_username</code> автоматически получается из SMS сервиса при подтверждении номера телефона через Telegram бота @dream_smsbot.
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Registration -->
+            <section class="docs-section">
+                <h2 class="section-title">Регистрация клиента</h2>
+                <p class="section-text">
+                    Для использования SSO необходимо зарегистрировать ваш сервис как OAuth 2.0 клиента.
+                </p>
+                <div class="code-block">
+                    <div class="code-header">
+                        <span>Регистрация клиента</span>
+                    </div>
+                    <pre><code>POST /api/admin/register-client
+
+{
+  "client_id": "your_unique_client_id",
+  "client_secret": "your_secret_key",
+  "name": "Your Service Name",
+  "allowed_redirect_uris": [
+    "https://your-app.com/callback",
+    "https://your-app.com/auth/callback"
+  ]
+}</code></pre>
+                </div>
+            </section>
+
+            <!-- User Profile API -->
+            <section class="docs-section">
+                <h2 class="section-title">Управление профилем</h2>
+                
+                <div class="endpoint-card">
+                    <div class="endpoint-header">
+                        <span class="method-badge get">GET</span>
+                        <code class="endpoint-path">/api/user/profile</code>
+                    </div>
+                    <p class="endpoint-desc">Получение профиля текущего пользователя (требует авторизации через сессию)</p>
+                    <div class="params">
+                        <strong>Response:</strong>
+                        <pre class="response-example"><code>{
+  "success": true,
+  "user": {
+    "id": 123,
+    "username": "user.dream",
+    "phone": "+79991234567",
+    "avatar": "https://example.com/avatar.jpg",
+    "first_name": "Иван",
+    "last_name": "Иванов",
+    "email": "user@example.com",
+    "country": "Россия",
+    "city": "Москва",
+    "telegram_username": "ivan_ivanov"
+  }
+}</code></pre>
+                    </div>
+                </div>
+
+                <div class="endpoint-card">
+                    <div class="endpoint-header">
+                        <span class="method-badge post">POST</span>
+                        <code class="endpoint-path">/api/user/profile</code>
+                    </div>
+                    <p class="endpoint-desc">Обновление профиля пользователя</p>
+                    <div class="params">
+                        <strong>Body (JSON, все поля опциональны):</strong>
+                        <ul>
+                            <li><code>first_name</code> (optional) — Имя</li>
+                            <li><code>last_name</code> (optional) — Фамилия</li>
+                            <li><code>email</code> (optional) — Email адрес</li>
+                            <li><code>country</code> (optional) — Страна</li>
+                            <li><code>city</code> (optional) — Город</li>
+                            <li><code>telegram_username</code> (optional) — Telegram username (без @)</li>
+                        </ul>
+                        <strong>Response:</strong>
+                        <pre class="response-example"><code>{
+  "success": true,
+  "message": "Профиль обновлен"
+}</code></pre>
+                        <p class="section-text" style="margin-top: 12px; font-size: 14px; color: var(--text-muted);">
+                            <strong>Валидация:</strong> Email проверяется на корректный формат. Telegram username автоматически очищается от символа <code>@</code> при сохранении.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="endpoint-card">
+                    <div class="endpoint-header">
+                        <span class="method-badge post">POST</span>
+                        <code class="endpoint-path">/api/user/avatar</code>
+                    </div>
+                    <p class="endpoint-desc">Загрузка или удаление аватара пользователя</p>
+                    <div class="params">
+                        <strong>Body (FormData для загрузки файла или JSON для удаления):</strong>
+                        <ul>
+                            <li><code>avatar</code> (file, optional) — файл изображения для загрузки</li>
+                            <li><code>avatar</code> (string, optional) — пустая строка <code>""</code> для удаления аватара</li>
+                        </ul>
+                        <strong>Response:</strong>
+                        <pre class="response-example"><code>{
+  "success": true,
+  "message": "Аватар обновлен",
+  "avatar": "https://example.com/avatar.jpg"
+}</code></pre>
+                    </div>
+                </div>
+
+                <div class="endpoint-card">
+                    <div class="endpoint-header">
+                        <span class="method-badge post">POST</span>
+                        <code class="endpoint-path">/api/user/avatar/telegram</code>
+                    </div>
+                    <p class="endpoint-desc">Получение аватара из Telegram через SMS сервис (требует привязанный номер телефона)</p>
+                    <div class="params">
+                        <strong>Response:</strong>
+                        <pre class="response-example"><code>{
+  "success": true,
+  "message": "Аватар получен из Telegram",
+  "avatar": "https://api.telegram.org/file/bot.../avatar.jpg"
+}</code></pre>
+                        <p class="section-text" style="margin-top: 12px; font-size: 14px; color: var(--text-muted);">
+                            <strong>Требования:</strong> Пользователь должен иметь привязанный номер телефона, зарегистрированный в Telegram боте @dream_smsbot.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="endpoint-card">
+                    <div class="endpoint-header">
+                        <span class="method-badge post">POST</span>
+                        <code class="endpoint-path">/api/user/bind-phone/send</code>
+                    </div>
+                    <p class="endpoint-desc">Отправка кода подтверждения для привязки номера телефона</p>
+                    <div class="params">
+                        <strong>Body (JSON):</strong>
+                        <ul>
+                            <li><code>phone</code> (required) — номер телефона для привязки</li>
+                        </ul>
+                        <strong>Response:</strong>
+                        <pre class="response-example"><code>{
+  "success": true,
+  "message": "Code sent to phone"
+}</code></pre>
+                    </div>
+                </div>
+
+                <div class="endpoint-card">
+                    <div class="endpoint-header">
+                        <span class="method-badge post">POST</span>
+                        <code class="endpoint-path">/api/user/bind-phone/verify</code>
+                    </div>
+                    <p class="endpoint-desc">Подтверждение кода и привязка номера телефона к аккаунту</p>
+                    <div class="params">
+                        <strong>Body (JSON):</strong>
+                        <ul>
+                            <li><code>code</code> (required) — код подтверждения из Telegram</li>
+                        </ul>
+                        <strong>Response:</strong>
+                        <pre class="response-example"><code>{
+  "success": true,
+  "message": "Phone number bound successfully"
+}</code></pre>
+                        <p class="section-text" style="margin-top: 12px; font-size: 14px; color: var(--text-muted);">
+                            <strong>Автоматическая синхронизация:</strong> При успешной привязке номера автоматически получается и сохраняется <code>telegram_username</code> из SMS сервиса, если пользователь зарегистрирован в боте @dream_smsbot.
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Security -->
+            <!-- User Data Fields -->
+            <section class="docs-section">
+                <h2 class="section-title">Поля данных пользователя</h2>
+                <p class="section-text">
+                    dreamID SSO предоставляет расширенную информацию о пользователе для удобной интеграции в ваши сервисы.
+                </p>
+                
+                <div class="fields-table">
+                    <table style="width: 100%; border-collapse: collapse; margin-top: 16px;">
+                        <thead>
+                            <tr style="border-bottom: 2px solid var(--border);">
+                                <th style="text-align: left; padding: 12px; font-weight: 600; color: var(--text-main);">Поле</th>
+                                <th style="text-align: left; padding: 12px; font-weight: 600; color: var(--text-main);">Тип</th>
+                                <th style="text-align: left; padding: 12px; font-weight: 600; color: var(--text-main);">Описание</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr style="border-bottom: 1px solid var(--border);">
+                                <td style="padding: 12px;"><code>id</code></td>
+                                <td style="padding: 12px; color: var(--text-muted);">integer</td>
+                                <td style="padding: 12px; color: var(--text-muted);">Уникальный идентификатор пользователя (обязательное)</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid var(--border);">
+                                <td style="padding: 12px;"><code>username</code></td>
+                                <td style="padding: 12px; color: var(--text-muted);">string</td>
+                                <td style="padding: 12px; color: var(--text-muted);">Логин пользователя (обязательное)</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid var(--border);">
+                                <td style="padding: 12px;"><code>phone</code></td>
+                                <td style="padding: 12px; color: var(--text-muted);">string | null</td>
+                                <td style="padding: 12px; color: var(--text-muted);">Номер телефона в формате +7XXXXXXXXXX</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid var(--border);">
+                                <td style="padding: 12px;"><code>avatar</code></td>
+                                <td style="padding: 12px; color: var(--text-muted);">string | null</td>
+                                <td style="padding: 12px; color: var(--text-muted);">URL аватара пользователя</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid var(--border);">
+                                <td style="padding: 12px;"><code>first_name</code></td>
+                                <td style="padding: 12px; color: var(--text-muted);">string | null</td>
+                                <td style="padding: 12px; color: var(--text-muted);">Имя пользователя</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid var(--border);">
+                                <td style="padding: 12px;"><code>last_name</code></td>
+                                <td style="padding: 12px; color: var(--text-muted);">string | null</td>
+                                <td style="padding: 12px; color: var(--text-muted);">Фамилия пользователя</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid var(--border);">
+                                <td style="padding: 12px;"><code>email</code></td>
+                                <td style="padding: 12px; color: var(--text-muted);">string | null</td>
+                                <td style="padding: 12px; color: var(--text-muted);">Email адрес пользователя</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid var(--border);">
+                                <td style="padding: 12px;"><code>country</code></td>
+                                <td style="padding: 12px; color: var(--text-muted);">string | null</td>
+                                <td style="padding: 12px; color: var(--text-muted);">Страна пользователя</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid var(--border);">
+                                <td style="padding: 12px;"><code>city</code></td>
+                                <td style="padding: 12px; color: var(--text-muted);">string | null</td>
+                                <td style="padding: 12px; color: var(--text-muted);">Город пользователя</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid var(--border);">
+                                <td style="padding: 12px;"><code>telegram_username</code></td>
+                                <td style="padding: 12px; color: var(--text-muted);">string | null</td>
+                                <td style="padding: 12px; color: var(--text-muted);">Telegram username (без @). Автоматически синхронизируется с SMS сервисом при подтверждении номера</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div style="margin-top: 24px; padding: 16px; background: var(--surface); border-radius: var(--radius-sm); border-left: 3px solid var(--primary);">
+                    <p style="margin: 0; font-size: 14px; color: var(--text-main);">
+                        <strong>💡 Автоматическая синхронизация:</strong> Поле <code>telegram_username</code> автоматически получается из SMS сервиса при подтверждении номера телефона через Telegram бота @dream_smsbot. Если пользователь подтвердил номер, но username еще не синхронизирован, он будет автоматически получен при следующем запросе профиля.
+                    </p>
+                </div>
+            </section>
+
+            <!-- Security -->
+            <section class="docs-section">
+                <h2 class="section-title">Безопасность</h2>
+                <ul class="security-list">
+                    <li>Все запросы должны использовать HTTPS</li>
+                    <li>Храните <code>client_secret</code> в безопасности на сервере</li>
+                    <li>Используйте параметр <code>state</code> для защиты от CSRF атак</li>
+                    <li>Токены действительны 30 дней, реализуйте refresh механизм</li>
+                    <li>Проверяйте <code>redirect_uri</code> на соответствие зарегистрированным</li>
+                </ul>
+            </section>
+
+            <!-- Examples -->
+            <section class="docs-section">
+                <h2 class="section-title">Примеры интеграции</h2>
+                
+                <div class="example-tabs">
+                    <button class="tab-btn active" data-tab="js">JavaScript</button>
+                    <button class="tab-btn" data-tab="python">Python</button>
+                    <button class="tab-btn" data-tab="php">PHP</button>
+                </div>
+
+                <div class="tab-content active" data-content="js">
+                    <div class="code-block">
+                        <pre><code>// Frontend: Редирект на авторизацию
+function loginWithDreamID() {
+    const state = generateRandomString();
+    sessionStorage.setItem('oauth_state', state);
+    
+    const params = new URLSearchParams({
+        redirect_uri: 'https://your-app.com/callback',
+        client_id: 'your_client_id',
+        state: state
+    });
+    
+    window.location.href = `https://auth.dreampartners.online/sso?${params}`;
+}
+
+// Backend: Обработка callback
+app.get('/callback', async (req, res) => {
+    const { code, state } = req.query;
+    
+    // Проверка state
+    if (state !== req.session.oauth_state) {
+        return res.status(400).send('Invalid state');
+    }
+    
+    // Обмен кода на токен
+    const tokenResponse = await fetch('https://auth.dreampartners.online/api/sso/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            code,
+            client_id: 'your_client_id',
+            client_secret: process.env.CLIENT_SECRET
+        })
+    });
+    
+    const { access_token } = await tokenResponse.json();
+    
+    // Получение данных пользователя
+    const userResponse = await fetch('https://auth.dreampartners.online/api/sso/user', {
+        headers: { 'Authorization': `Bearer ${access_token}` }
+    });
+    
+    const user = await userResponse.json();
+    
+    // Пользователь содержит все поля профиля:
+    // user.id, user.username, user.phone, user.avatar,
+    // user.first_name, user.last_name, user.email,
+    // user.country, user.city, user.telegram_username
+    
+    // Создание сессии
+    req.session.user = user;
+    res.redirect('/dashboard');
+});
+
+// Обновление профиля пользователя
+async function updateUserProfile(accessToken, profileData) {
+    const response = await fetch('https://auth.dreampartners.online/api/user/profile', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`
+        },
+        body: JSON.stringify({
+            first_name: profileData.firstName,
+            last_name: profileData.lastName,
+            email: profileData.email,
+            country: profileData.country,
+            city: profileData.city,
+            telegram_username: profileData.telegramUsername
+        })
+    });
+    
+    return await response.json();
+}</code></pre>
+                    </div>
+                </div>
+
+                <div class="tab-content" data-content="python">
+                    <div class="code-block">
+                        <pre><code>from flask import Flask, redirect, request, session
+import requests
+
+app = Flask(__name__)
+
+@app.route('/login')
+def login():
+    state = generate_random_string()
+    session['oauth_state'] = state
+    
+    params = {
+        'redirect_uri': 'https://your-app.com/callback',
+        'client_id': 'your_client_id',
+        'state': state
+    }
+    
+    auth_url = 'https://auth.dreampartners.online/sso?' + \
+               '&'.join([f'{k}={v}' for k, v in params.items()])
+    
+    return redirect(auth_url)
+
+@app.route('/callback')
+def callback():
+    code = request.args.get('code')
+    state = request.args.get('state')
+    
+    if state != session.get('oauth_state'):
+        return 'Invalid state', 400
+    
+    # Обмен кода на токен
+    token_response = requests.post(
+        'https://auth.dreampartners.online/api/sso/token',
+        json={
+            'code': code,
+            'client_id': 'your_client_id',
+            'client_secret': os.getenv('CLIENT_SECRET')
+        }
+    )
+    
+    access_token = token_response.json()['access_token']
+    
+    # Получение данных пользователя
+    user_response = requests.get(
+        'https://auth.dreampartners.online/api/sso/user',
+        headers={'Authorization': f'Bearer {access_token}'}
+    )
+    
+    user = user_response.json()
+    
+    # Пользователь содержит все поля профиля:
+    # user['id'], user['username'], user['phone'], user['avatar'],
+    # user['first_name'], user['last_name'], user['email'],
+    # user['country'], user['city'], user['telegram_username']
+    
+    session['user'] = user
+    return redirect('/dashboard')
+
+# Обновление профиля пользователя
+def update_user_profile(access_token, profile_data):
+    response = requests.post(
+        'https://auth.dreampartners.online/api/user/profile',
+        headers={
+            'Content-Type': 'application/json',
+            'Authorization': f'Bearer {access_token}'
+        },
+        json={
+            'first_name': profile_data.get('first_name'),
+            'last_name': profile_data.get('last_name'),
+            'email': profile_data.get('email'),
+            'country': profile_data.get('country'),
+            'city': profile_data.get('city'),
+            'telegram_username': profile_data.get('telegram_username')
+        }
+    )
+    return response.json()</code></pre>
+                    </div>
+                </div>
+
+                <div class="tab-content" data-content="php">
+                    <div class="code-block">
+                        <pre><code>&lt;?php
+// Редирект на авторизацию
+function loginWithDreamID() {
+    $state = bin2hex(random_bytes(16));
+    $_SESSION['oauth_state'] = $state;
+    
+    $params = http_build_query([
+        'redirect_uri' => 'https://your-app.com/callback',
+        'client_id' => 'your_client_id',
+        'state' => $state
+    ]);
+    
+    header('Location: https://auth.dreampartners.online/sso?' . $params);
+    exit;
+}
+
+// Обработка callback
+if (isset($_GET['code'])) {
+    $code = $_GET['code'];
+    $state = $_GET['state'];
+    
+    if ($state !== $_SESSION['oauth_state']) {
+        die('Invalid state');
+    }
+    
+    // Обмен кода на токен
+    $tokenResponse = file_get_contents('https://auth.dreampartners.online/api/sso/token', false, stream_context_create([
+        'http' => [
+            'method' => 'POST',
+            'header' => 'Content-Type: application/json',
+            'content' => json_encode([
+                'code' => $code,
+                'client_id' => 'your_client_id',
+                'client_secret' => getenv('CLIENT_SECRET')
+            ])
+        ]
+    ]));
+    
+    $tokenData = json_decode($tokenResponse, true);
+    $accessToken = $tokenData['access_token'];
+    
+    // Получение данных пользователя
+    $userResponse = file_get_contents('https://auth.dreampartners.online/api/sso/user', false, stream_context_create([
+        'http' => [
+            'header' => "Authorization: Bearer $accessToken"
+        ]
+    ]));
+    
+    $user = json_decode($userResponse, true);
+    $_SESSION['user'] = $user;
+    
+    header('Location: /dashboard');
+    exit;
+}
+?&gt;</code></pre>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Support -->
+            <section class="docs-section">
+                <h2 class="section-title">Поддержка</h2>
+                <p class="section-text">
+                    Если у вас возникли вопросы по интеграции, обратитесь в поддержку:
+                </p>
+                <div style="margin-top: 16px;">
+                    <a href="https://t.me/dreamcatch_r" target="_blank" style="display: inline-flex; align-items: center; gap: 8px; color: var(--text-main); text-decoration: none; font-weight: 500; padding: 12px 20px; border: 1px solid var(--border); border-radius: var(--radius-sm); transition: all 0.2s;">
+                        <i class="ph ph-telegram-logo" style="font-size: 20px;"></i>
+                        <span>Telegram поддержка</span>
+                    </a>
+                </div>
+            </section>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+.docs-wrapper {
+    min-height: 100vh;
+    background: var(--bg);
+    padding: 40px 20px;
+}
+
+.docs-container {
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.docs-header {
+    margin-bottom: 60px;
+    padding-bottom: 40px;
+    border-bottom: 1px solid var(--border);
+}
+
+.docs-content {
+    display: flex;
+    flex-direction: column;
+    gap: 48px;
+}
+
+.docs-section {
+    padding-bottom: 32px;
+    border-bottom: 1px solid var(--border);
+}
+
+.docs-section:last-child {
+    border-bottom: none;
+}
+
+.section-title {
+    font-size: 32px;
+    font-weight: 700;
+    margin-bottom: 16px;
+    color: var(--text-main);
+}
+
+.section-text {
+    font-size: 16px;
+    line-height: 1.7;
+    color: var(--text-muted);
+    margin-bottom: 24px;
+}
+
+.code-block {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    margin: 24px 0;
+}
+
+.code-header {
+    background: var(--bg);
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.code-block pre {
+    margin: 0;
+    padding: 20px;
+    overflow-x: auto;
+    background: var(--surface);
+}
+
+.code-block code {
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--text-main);
+}
+
+.endpoint-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 24px;
+    margin-bottom: 20px;
+}
+
+.endpoint-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.method-badge {
+    padding: 4px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.method-badge.get {
+    background: #EFF6FF;
+    color: #1E40AF;
+}
+
+.method-badge.post {
+    background: #F0FDF4;
+    color: #166534;
+}
+
+.endpoint-path {
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 16px;
+    color: var(--text-main);
+    font-weight: 600;
+}
+
+.endpoint-desc {
+    color: var(--text-muted);
+    margin-bottom: 16px;
+    font-size: 15px;
+}
+
+.params {
+    margin-top: 16px;
+    font-size: 14px;
+}
+
+.params strong {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--text-main);
+}
+
+.params ul {
+    list-style: none;
+    padding-left: 0;
+    margin: 12px 0;
+}
+
+.params li {
+    margin-bottom: 8px;
+    padding-left: 20px;
+    position: relative;
+    color: var(--text-muted);
+    line-height: 1.6;
+}
+
+.params li::before {
+    content: '•';
+    position: absolute;
+    left: 0;
+    color: var(--text-main);
+}
+
+.params code {
+    background: var(--bg);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+}
+
+.response-example {
+    background: var(--bg);
+    padding: 16px;
+    border-radius: var(--radius-sm);
+    margin-top: 12px;
+    overflow-x: auto;
+}
+
+.response-example code {
+    font-size: 13px;
+    color: var(--text-main);
+}
+
+.security-list {
+    list-style: none;
+    padding-left: 0;
+    margin: 16px 0;
+}
+
+.security-list li {
+    padding: 12px 0;
+    padding-left: 32px;
+    position: relative;
+    color: var(--text-muted);
+    line-height: 1.6;
+    border-bottom: 1px solid var(--border);
+}
+
+.security-list li:last-child {
+    border-bottom: none;
+}
+
+.security-list li::before {
+    content: '✓';
+    position: absolute;
+    left: 0;
+    color: var(--text-main);
+    font-weight: 600;
+}
+
+.example-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+}
+
+.tab-btn {
+    padding: 12px 20px;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-bottom: -1px;
+}
+
+.tab-btn:hover {
+    color: var(--text-main);
+}
+
+.tab-btn.active {
+    color: var(--text-main);
+    border-bottom-color: var(--text-main);
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+@media (max-width: 768px) {
+    .docs-wrapper {
+        padding: 20px 16px;
+    }
+    
+    .docs-header h1 {
+        font-size: 36px;
+    }
+    
+    .section-title {
+        font-size: 24px;
+    }
+    
+    .code-block pre {
+        padding: 16px;
+        font-size: 12px;
+    }
+}
+</style>
+
+<script>
+// Tab switching
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const tab = btn.dataset.tab;
+        
+        // Remove active from all
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        
+        // Add active to clicked
+        btn.classList.add('active');
+        document.querySelector(`[data-content="${tab}"]`).classList.add('active');
+    });
+});
+</script>
+{% endblock %}
+

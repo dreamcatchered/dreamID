@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="login-wrapper">
+    <div class="login-card">
+        <div class="logo-badge"><i class="ph ph-user-plus"></i></div>
+        <h1 style="font-size: 24px; margin-bottom: 8px;">Регистрация</h1>
+        <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 24px;">Создание dreamID</p>
+
+        <!-- REGISTER FORM (USERNAME + PASSWORD + OPTIONAL PHONE) -->
+        <form id="registerForm">
+            <div class="input-stack">
+                <input type="text" class="custom-input" id="username" placeholder="Придумайте логин" required autocomplete="username">
+                <input type="password" class="custom-input" id="password" placeholder="Пароль (мин. 6 символов)" required minlength="6" autocomplete="new-password">
+                <input type="password" class="custom-input" id="confirmPassword" placeholder="Повторите пароль" required minlength="6" autocomplete="new-password">
+                <input type="tel" class="custom-input" id="phone" placeholder="Номер телефона (опционально)" autocomplete="tel">
+            </div>
+            <p class="hint-text" style="margin-top: 8px; font-size: 12px; color: var(--text-muted);">
+                💡 Номер нужен для быстрого входа через Telegram. Можно привязать позже.
+            </p>
+            
+            <button type="submit" class="btn-primary" style="margin-top: 16px;">Создать аккаунт</button>
+        </form>
+
+        <div id="alert" class="alert"></div>
+
+        <div style="margin-top: 24px; font-size: 14px; color: var(--text-muted); padding-top: 16px; border-top: 1px solid var(--border);">
+            <a href="{{ url_for('login') }}" style="color: var(--text-muted); text-decoration: none;">Уже есть аккаунт? Войти</a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Animation
+    gsap.from(".login-card", {
+        duration: 0.6,
+        y: 30,
+        opacity: 0,
+        ease: "power3.out"
+    });
+
+    // Restrict Phone Input (Only numbers and +)
+    document.getElementById('phone').addEventListener('input', function() {
+        // Allow digits and + at the beginning
+        this.value = this.value.replace(/[^\d+]/g, '');
+    });
+
+    function showAlert(message, type) {
+        const alert = document.getElementById('alert');
+        alert.textContent = message;
+        alert.className = 'alert alert-' + type;
+        alert.style.display = 'block';
+        
+        if (type === 'success') {
+            setTimeout(() => {
+                alert.style.display = 'none';
+            }, 5000);
+        }
+    }
+
+    document.getElementById('registerForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const username = document.getElementById('username').value.trim();
+        const password = document.getElementById('password').value;
+        const confirmPassword = document.getElementById('confirmPassword').value;
+        const phone = document.getElementById('phone').value.trim();
+        
+        if (!username || !password || !confirmPassword) {
+            showAlert('❌ Заполните все обязательные поля', 'error');
+            return;
+        }
+        
+        if (password.length < 6) {
+            showAlert('❌ Пароль должен быть минимум 6 символов', 'error');
+            return;
+        }
+
+        if (password !== confirmPassword) {
+            showAlert('❌ Пароли не совпадают', 'error');
+            return;
+        }
+        
+        const btn = e.target.querySelector('button[type="submit"]');
+        const originalText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = 'Создание...';
+        
+        try {
+            const response = await fetch('/api/register/simple', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    username: username,
+                    password: password,
+                    phone: phone || null
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                showAlert('✅ Аккаунт создан!', 'success');
+                
+                // Success Animation
+                const tl = gsap.timeline();
+                tl.to('.login-card', {
+                    duration: 0.5,
+                    opacity: 0,
+                    y: 30,
+                    scale: 0.95,
+                    filter: "blur(10px)",
+                    ease: 'power2.in',
+                    onComplete: () => {
+                        window.location.href = '/';
+                    }
+                });
+            } else {
+                let errorMsg = data.error || 'Ошибка регистрации';
+                if (errorMsg.includes('already exists')) errorMsg = 'Логин занят';
+                showAlert('❌ ' + errorMsg, 'error');
+                btn.disabled = false;
+                btn.textContent = originalText;
+            }
+        } catch (error) {
+            showAlert('❌ Ошибка соединения', 'error');
+            btn.disabled = false;
+            btn.textContent = originalText;
+        }
+    });
+</script>
+{% endblock %}

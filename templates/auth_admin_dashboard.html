@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DreamID Admin Panel</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #ffffff;
+            color: #1a1a1a;
+        }
+        
+        .header {
+            background: #ffffff;
+            color: #1a1a1a;
+            padding: 20px 30px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .header h1 {
+            font-size: 24px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .logout-btn {
+            background: #1a1a1a;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+        
+        .logout-btn:hover {
+            background: #333;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 30px;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            border: 1px solid #e0e0e0;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+        }
+        
+        .stat-icon {
+            font-size: 32px;
+            margin-bottom: 12px;
+        }
+        
+        .stat-label {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+        
+        .stat-value {
+            font-size: 32px;
+            font-weight: 700;
+            color: #1a1a1a;
+        }
+        
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 0;
+        }
+        
+        .tab {
+            padding: 12px 24px;
+            background: transparent;
+            border: none;
+            border-bottom: 3px solid transparent;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 500;
+            color: #666;
+            transition: all 0.2s;
+        }
+        
+        .tab:hover {
+            color: #1a1a1a;
+        }
+        
+        .tab.active {
+            color: #1a1a1a;
+            border-bottom-color: #1a1a1a;
+        }
+        
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.3s;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .actions {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            background: #1a1a1a;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+        
+        .btn:hover {
+            background: #333;
+        }
+        
+        .btn-secondary {
+            background: white;
+            color: #1a1a1a;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .btn-secondary:hover {
+            background: #f5f5f5;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+        
+        thead {
+            background: #f8f9fa;
+        }
+        
+        th {
+            padding: 16px;
+            text-align: left;
+            font-weight: 600;
+            color: #1a1a1a;
+            font-size: 14px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        
+        td {
+            padding: 16px;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 14px;
+        }
+        
+        tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .badge-success {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .badge-warning {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .badge-danger {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .action-btn {
+            padding: 6px 12px;
+            margin: 0 4px;
+            background: transparent;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        
+        .action-btn:hover {
+            background: #f5f5f5;
+            border-color: #1a1a1a;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal.active {
+            display: flex;
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        
+        .modal-header {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            font-size: 14px;
+        }
+        
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: inherit;
+        }
+        
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #1a1a1a;
+        }
+        
+        .form-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 24px;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+        
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+        
+        code {
+            background: #f5f5f5;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 13px;
+        }
+        
+        .copy-btn {
+            background: #f5f5f5;
+            border: 1px solid #e0e0e0;
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            margin-left: 8px;
+        }
+        
+        .copy-btn:hover {
+            background: #e0e0e0;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🔐 DreamID Admin</h1>
+        <a href="/admin/logout" class="logout-btn">Выход</a>
+    </div>
+    
+    <div class="container">
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon">👥</div>
+                <div class="stat-label">Всего пользователей</div>
+                <div class="stat-value" id="totalUsers">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">🔑</div>
+                <div class="stat-label">OAuth клиентов</div>
+                <div class="stat-value" id="totalClients">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">🎫</div>
+                <div class="stat-label">Активных токенов</div>
+                <div class="stat-value" id="activeTokens">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">📊</div>
+                <div class="stat-label">Авторизаций (24ч)</div>
+                <div class="stat-value" id="auth24h">0</div>
+            </div>
+        </div>
+        
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('clients')">🔑 OAuth Клиенты</button>
+            <button class="tab" onclick="switchTab('users')">👥 Пользователи</button>
+            <button class="tab" onclick="switchTab('tokens')">🎫 Токены</button>
+        </div>
+        
+        <div id="clientsTab" class="tab-content active">
+            <div class="actions">
+                <button class="btn" onclick="openModal('createClientModal')">+ Создать клиента</button>
+            </div>
+            <div id="clientsContent"></div>
+        </div>
+        
+        <div id="usersTab" class="tab-content">
+            <div id="usersContent"></div>
+        </div>
+        
+        <div id="tokensTab" class="tab-content">
+            <div id="tokensContent"></div>
+        </div>
+    </div>
+    
+    <!-- Create Client Modal -->
+    <div id="createClientModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">Создать OAuth клиента</div>
+            <form id="createClientForm">
+                <div class="form-group">
+                    <label>Client ID *</label>
+                    <input type="text" id="newClientId" required placeholder="my_app">
+                </div>
+                <div class="form-group">
+                    <label>Client Secret *</label>
+                    <input type="text" id="newClientSecret" required placeholder="Введите или сгенерируйте">
+                    <button type="button" class="generate-btn" onclick="generateAndSetSecret()">🔄 Сгенерировать новый</button>
+                </div>
+                <div class="form-group">
+                    <label>Название</label>
+                    <input type="text" id="newClientName" placeholder="My Application">
+                </div>
+                <div class="form-group">
+                    <label>Redirect URIs * (по одному на строку)</label>
+                    <textarea id="newClientUris" rows="4" required placeholder="https://example.com/callback&#10;https://example.com/auth/callback"></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('createClientModal')">Отмена</button>
+                    <button type="submit" class="btn">Создать</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- View Secret Modal -->
+    <div id="viewSecretModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">Client Secret</div>
+            <div class="form-group">
+                <label>Client ID</label>
+                <code id="modalClientId"></code>
+            </div>
+            <div class="form-group">
+                <label>Client Secret</label>
+                <div>
+                    <code id="modalClientSecret"></code>
+                    <button class="copy-btn" onclick="copySecret()">📋 Копировать</button>
+                </div>
+            </div>
+            <div class="form-actions">
+                <button class="btn" onclick="closeModal('viewSecretModal')">Закрыть</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Edit Client Modal -->
+    <div id="editClientModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">Редактировать клиента</div>
+            <form id="editClientForm">
+                <input type="hidden" id="editClientIdOriginal">
+                <div class="form-group">
+                    <label>Client ID *</label>
+                    <input type="text" id="editClientId" required readonly style="background: #f5f5f5;">
+                </div>
+                <div class="form-group">
+                    <label>Client Secret *</label>
+                    <input type="text" id="editClientSecret" required placeholder="Введите или сгенерируйте">
+                    <button type="button" class="generate-btn" onclick="generateAndSetEditSecret()">🔄 Сгенерировать новый</button>
+                </div>
+                <div class="form-group">
+                    <label>Название</label>
+                    <input type="text" id="editClientName" placeholder="My Application">
+                </div>
+                <div class="form-group">
+                    <label>Redirect URIs * (по одному на строку)</label>
+                    <textarea id="editClientUris" rows="4" required placeholder="https://example.com/callback&#10;https://example.com/auth/callback"></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('editClientModal')">Отмена</button>
+                    <button type="submit" class="btn">Сохранить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <script>
+        const currentData = {
+            clients: [],
+            users: [],
+            tokens: []
+        };
+        
+        function switchTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            document.getElementById(tab + 'Tab').classList.add('active');
+        }
+        
+        async function loadStats() {
+            try {
+                const response = await fetch('/api/admin/stats');
+                const data = await response.json();
+                
+                document.getElementById('totalUsers').textContent = data.total_users || 0;
+                document.getElementById('totalClients').textContent = data.total_clients || 0;
+                document.getElementById('activeTokens').textContent = data.active_tokens || 0;
+                document.getElementById('auth24h').textContent = data.auth_24h || 0;
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
+        }
+        
+        async function loadClients() {
+            try {
+                const response = await fetch('/api/admin/clients');
+                const data = await response.json();
+                currentData.clients = data.clients;
+                
+                const content = document.getElementById('clientsContent');
+                
+                if (data.clients.length === 0) {
+                    content.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">🔑</div>
+                            <div>Нет OAuth клиентов</div>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                content.innerHTML = `
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Client ID</th>
+                                <th>Название</th>
+                                <th>Redirect URIs</th>
+                                <th>Создан</th>
+                                <th>Действия</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.clients.map(client => `
+                                <tr>
+                                    <td><code>${client.client_id}</code></td>
+                                    <td>${client.name || '-'}</td>
+                                    <td><small>${client.redirect_uris.join('<br>')}</small></td>
+                                    <td>${new Date(client.created_at).toLocaleDateString('ru-RU')}</td>
+                                    <td>
+                                        <button class="action-btn" onclick="editClient('${client.client_id}')">✏️ Изменить</button>
+                                        <button class="action-btn" onclick="viewSecret('${client.client_id}', '${client.client_secret}')">🔑 Secret</button>
+                                        <button class="action-btn" onclick="regenerateSecret('${client.client_id}')">🔄</button>
+                                        <button class="action-btn" onclick="deleteClient('${client.client_id}')">🗑️</button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+            } catch (error) {
+                console.error('Error loading clients:', error);
+            }
+        }
+        
+        async function loadUsers() {
+            try {
+                const response = await fetch('/api/admin/users');
+                const data = await response.json();
+                currentData.users = data.users;
+                
+                const content = document.getElementById('usersContent');
+                
+                if (data.users.length === 0) {
+                    content.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">👥</div>
+                            <div>Нет пользователей</div>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                content.innerHTML = `
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Username</th>
+                                <th>Telegram</th>
+                                <th>Телефон</th>
+                                <th>Зарегистрирован</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.users.map(user => `
+                                <tr>
+                                    <td>${user.id}</td>
+                                    <td><strong>${user.username}</strong></td>
+                                    <td>${user.telegram_username ? '@' + user.telegram_username : '-'}<br><small>${user.telegram_id || ''}</small></td>
+                                    <td>${user.phone || '-'}</td>
+                                    <td>${new Date(user.created_at).toLocaleDateString('ru-RU')}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+            } catch (error) {
+                console.error('Error loading users:', error);
+            }
+        }
+        
+        async function loadTokens() {
+            try {
+                const response = await fetch('/api/admin/tokens');
+                const data = await response.json();
+                currentData.tokens = data.tokens;
+                
+                const content = document.getElementById('tokensContent');
+                
+                if (data.tokens.length === 0) {
+                    content.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">🎫</div>
+                            <div>Нет активных токенов</div>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                content.innerHTML = `
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>User ID</th>
+                                <th>Client ID</th>
+                                <th>Создан</th>
+                                <th>Истекает</th>
+                                <th>Действия</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.tokens.map(token => `
+                                <tr>
+                                    <td>${token.user_id}</td>
+                                    <td><code>${token.client_id || '-'}</code></td>
+                                    <td>${new Date(token.created_at).toLocaleString('ru-RU')}</td>
+                                    <td>${new Date(token.expires_at).toLocaleString('ru-RU')}</td>
+                                    <td>
+                                        <button class="action-btn" onclick="revokeToken('${token.token}')">🗑️ Отозвать</button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+            } catch (error) {
+                console.error('Error loading tokens:', error);
+            }
+        }
+        
+        function openModal(modalId) {
+            document.getElementById(modalId).classList.add('active');
+        }
+        
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('active');
+        }
+        
+        function viewSecret(clientId, clientSecret) {
+            document.getElementById('modalClientId').textContent = clientId;
+            document.getElementById('modalClientSecret').textContent = clientSecret;
+            openModal('viewSecretModal');
+        }
+        
+        function copySecret() {
+            const secret = document.getElementById('modalClientSecret').textContent;
+            navigator.clipboard.writeText(secret);
+            alert('Client Secret скопирован!');
+        }
+        
+        document.getElementById('createClientForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const clientId = document.getElementById('newClientId').value;
+            const clientSecret = document.getElementById('newClientSecret').value || generateSecret();
+            const name = document.getElementById('newClientName').value;
+            const uris = document.getElementById('newClientUris').value.split('\n').filter(u => u.trim());
+            
+            try {
+                const response = await fetch('/api/admin/clients', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        client_id: clientId,
+                        client_secret: clientSecret,
+                        name: name,
+                        redirect_uris: uris
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert('Клиент создан!\nClient Secret: ' + clientSecret);
+                    closeModal('createClientModal');
+                    document.getElementById('createClientForm').reset();
+                    loadClients();
+                    loadStats();
+                } else {
+                    alert('Ошибка: ' + data.error);
+                }
+            } catch (error) {
+                alert('Ошибка создания клиента');
+            }
+        });
+        
+        async function regenerateSecret(clientId) {
+            if (!confirm('Перегенерировать Client Secret? Старый перестанет работать!')) return;
+            
+            try {
+                const response = await fetch(`/api/admin/clients/${clientId}/regenerate-secret`, {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert('Новый Client Secret: ' + data.client_secret);
+                    loadClients();
+                }
+            } catch (error) {
+                alert('Ошибка перегенерации');
+            }
+        }
+        
+        async function deleteClient(clientId) {
+            if (!confirm('Удалить клиента? Это действие необратимо!')) return;
+            
+            try {
+                const response = await fetch(`/api/admin/clients/${clientId}`, {
+                    method: 'DELETE'
+                });
+                
+                if (response.ok) {
+                    loadClients();
+                    loadStats();
+                }
+            } catch (error) {
+                alert('Ошибка удаления');
+            }
+        }
+        
+        async function revokeToken(token) {
+            if (!confirm('Отозвать токен?')) return;
+            
+            try {
+                const response = await fetch(`/api/admin/tokens/${token}`, {
+                    method: 'DELETE'
+                });
+                
+                if (response.ok) {
+                    loadTokens();
+                    loadStats();
+                }
+            } catch (error) {
+                alert('Ошибка отзыва токена');
+            }
+        }
+        
+        function generateSecret() {
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+            let result = '';
+            for (let i = 0; i < 43; i++) {
+                result += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return result;
+        }
+        
+        function generateAndSetSecret() {
+            document.getElementById('newClientSecret').value = generateSecret();
+        }
+        
+        function generateAndSetEditSecret() {
+            document.getElementById('editClientSecret').value = generateSecret();
+        }
+        
+        function editClient(clientId) {
+            const client = currentData.clients.find(c => c.client_id === clientId);
+            if (!client) return;
+            
+            document.getElementById('editClientIdOriginal').value = client.client_id;
+            document.getElementById('editClientId').value = client.client_id;
+            document.getElementById('editClientSecret').value = client.client_secret;
+            document.getElementById('editClientName').value = client.name || '';
+            document.getElementById('editClientUris').value = client.redirect_uris.join('\n');
+            
+            openModal('editClientModal');
+        }
+        
+        document.getElementById('editClientForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const clientId = document.getElementById('editClientIdOriginal').value;
+            const clientSecret = document.getElementById('editClientSecret').value;
+            const name = document.getElementById('editClientName').value;
+            const uris = document.getElementById('editClientUris').value.split('\n').filter(u => u.trim());
+            
+            try {
+                const response = await fetch(`/api/admin/clients/${clientId}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        client_secret: clientSecret,
+                        name: name,
+                        redirect_uris: uris
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert('Клиент обновлен!');
+                    closeModal('editClientModal');
+                    loadClients();
+                    loadStats();
+                } else {
+                    alert('Ошибка: ' + data.error);
+                }
+            } catch (error) {
+                alert('Ошибка обновления клиента');
+            }
+        });
+        
+        // Load data on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            loadStats();
+            loadClients();
+            loadUsers();
+            loadTokens();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,1266 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard-wrapper" id="dashboardView">
+    <div class="dash-header">
+        <div>
+            <h2 style="font-size: 28px; font-weight: 600;">Привет 👋</h2>
+            <p style="color: var(--text-muted); font-size: 14px;">Все сервисы dreamPartners доступны.</p>
+        </div>
+        <div class="user-profile" onclick="openProfileModal()" style="cursor: pointer;" title="Управление профилем">
+            <div class="avatar" id="userAvatar" style="{% if avatar %}background-image: url('{{ avatar }}');{% else %}background-image: none;{% endif %} background-size: cover; background-position: center;">
+                {% if not avatar %}{{ username[0] | upper if username else 'U' }}{% endif %}
+            </div>
+            <div style="display: flex; flex-direction: column; align-items: flex-start; margin-right: 8px;">
+                <span style="font-size: 14px; font-weight: 500;">{{ username }}</span>
+                {% if phone %}
+                    <span style="font-size: 11px; color: var(--text-muted);">{{ phone }}</span>
+                {% else %}
+                     <span style="font-size: 11px; color: var(--error, #ef4444);" title="Телефон не привязан">Нет телефона</span>
+                {% endif %}
+            </div>
+            <a href="{{ url_for('logout') }}" class="logout-icon" title="Выйти" onclick="event.stopPropagation();">
+                <i class="ph ph-sign-out" style="margin-left: 4px; color: var(--text-muted);"></i>
+            </a>
+        </div>
+    </div>
+
+    <style>
+        .logout-icon {
+            display: flex;
+            align-items: center;
+            padding: 4px;
+            border-radius: 50%;
+            transition: background-color 0.2s;
+            text-decoration: none;
+        }
+        .logout-icon:hover {
+            background-color: #F4F4F5;
+        }
+        .logout-icon i {
+            color: var(--text-muted);
+            transition: color 0.2s;
+        }
+        .logout-icon:hover i {
+            color: var(--text-main);
+        }
+        
+        .alert-card {
+            background: #FFFFFF;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 24px;
+            margin: 0 auto 24px; /* Center horizontally */
+            display: flex;
+            align-items: flex-start;
+            gap: 16px;
+            max-width: 1200px;
+            width: 100%;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.02);
+            animation: slideIn 0.5s ease-out;
+        }
+        .alert-card .icon {
+            width: 40px; height: 40px;
+            background: #F4F4F5;
+            border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            color: var(--text-main);
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+        .alert-card .content {
+            flex: 1;
+        }
+        .alert-card h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-main);
+            margin-bottom: 6px;
+        }
+        .alert-card p {
+            font-size: 14px;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+            line-height: 1.5;
+        }
+        .bind-form {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .bind-input {
+            padding: 10px 14px;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            font-size: 14px;
+            outline: none;
+            width: 220px;
+            background: #F9F9FA;
+            font-family: inherit;
+            color: var(--text-main);
+            transition: all 0.2s;
+        }
+        .bind-input:focus {
+            border-color: var(--text-main);
+            background: #FFFFFF;
+        }
+        .btn-bind {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .btn-bind:hover {
+            opacity: 0.9;
+        }
+        .btn-bind:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .btn-cancel {
+            background: transparent;
+            color: var(--text-muted);
+            border: 1px solid var(--border);
+            padding: 10px 16px;
+            border-radius: 12px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-cancel:hover {
+            background: #F4F4F5;
+            color: var(--text-main);
+        }
+        .app-card {
+            cursor: pointer;
+        }
+        .app-card:focus-visible {
+            outline: 2px solid var(--primary);
+            outline-offset: 2px;
+        }
+        .app-card .app-info a {
+            text-decoration: none;
+        }
+        .integration-toggle {
+            margin: 32px auto 0;
+            max-width: 1200px;
+            display: flex;
+            justify-content: flex-start;
+        }
+        .integration-toggle button {
+            border: 1px solid var(--border);
+            background: #fff;
+            color: var(--text-main);
+            padding: 12px 16px;
+            border-radius: 12px;
+            font-weight: 700;
+            letter-spacing: -0.01em;
+            cursor: pointer;
+            transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+            box-shadow: 0 10px 18px rgba(0,0,0,0.05);
+        }
+        .integration-toggle button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 14px 26px rgba(0,0,0,0.08);
+            border-color: rgba(0,0,0,0.12);
+        }
+        .integration-toggle button:active {
+            transform: translateY(0);
+            box-shadow: 0 6px 14px rgba(0,0,0,0.05);
+        }
+        .integration-section {
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            margin: 16px auto 0;
+            padding: 28px;
+            max-width: 1200px;
+            box-shadow: 0 14px 28px rgba(0,0,0,0.06);
+            display: none;
+        }
+        .integration-section.open {
+            display: block;
+        }
+        .integration-header {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-bottom: 18px;
+        }
+        .integration-title {
+            font-size: 22px;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            color: var(--text-main);
+        }
+        .integration-subtitle {
+            color: var(--text-muted);
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        .integration-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 14px;
+        }
+        .integration-card {
+            position: relative;
+            background: #ffffff;
+            border: 1px solid rgba(0,0,0,0.08);
+            border-radius: 14px;
+            padding: 16px;
+            display: grid;
+            grid-template-columns: 56px 1fr;
+            gap: 12px;
+            transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+            box-shadow: 0 10px 24px rgba(0,0,0,0.05);
+            cursor: pointer;
+        }
+        .integration-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 16px 32px rgba(0,0,0,0.10);
+            border-color: rgba(0,0,0,0.14);
+        }
+        .integration-badge {
+            width: 56px;
+            height: 56px;
+            border-radius: 12px;
+            background: #f3f3f5;
+            border: 1px solid rgba(0,0,0,0.08);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            color: var(--text-main);
+            font-size: 18px;
+            letter-spacing: -0.02em;
+        }
+        .integration-card-body {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .integration-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(0,0,0,0.06);
+            color: var(--text-main);
+            padding: 6px 10px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        .integration-card-title {
+            margin: 0;
+            color: var(--text-main);
+            font-size: 16px;
+            font-weight: 700;
+            letter-spacing: -0.01em;
+        }
+        .integration-card p {
+            margin: 0;
+            color: var(--text-main);
+            font-size: 14px;
+            line-height: 1.55;
+        }
+        .integration-meta {
+            color: var(--text-muted);
+            font-size: 12px;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .founder-note {
+            margin-top: 18px;
+            padding: 16px 18px;
+            border-radius: 12px;
+            border: 1px dashed rgba(0,0,0,0.12);
+            background: #fafafa;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            flex-wrap: wrap;
+            font-size: 14px;
+            color: var(--text-main);
+        }
+        .founder-note a {
+            color: var(--text-main);
+            font-weight: 700;
+            text-decoration: none;
+        }
+        .founder-note a:hover {
+            text-decoration: underline;
+        }
+        .user-profile .avatar {
+            min-width: 48px;
+            min-height: 48px;
+            flex-shrink: 0;
+        }
+        
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+
+    <!-- Bind Phone Alert -->
+    {% if not phone %}
+    <div class="alert-card" id="bindPhoneCard">
+        <div class="icon"><i class="ph ph-warning"></i></div>
+        <div class="content">
+            <h3>Привяжите номер телефона</h3>
+            <p>Без номера телефона вам недоступен быстрый вход через Telegram и восстановление доступа.<br>
+            <span style="font-size: 13px; margin-top: 4px; display: inline-block;">Для получения кода нужен бот: <a href="https://t.me/dream_smsbot" target="_blank" style="color: var(--text-main); text-decoration: none; font-weight: 500;">@dream_smsbot</a></span></p>
+            
+            <div id="bindStep1" class="bind-form">
+                <input type="tel" id="bindPhoneInput" class="bind-input" placeholder="Номер телефона (79...)" value="">
+                <button onclick="sendBindCode()" id="btnSendBind" class="btn-bind">Привязать</button>
+            </div>
+            
+            <div id="bindStep2" class="bind-form" style="display: none;">
+                <input type="text" id="bindCodeInput" class="bind-input" placeholder="Код из Telegram" maxlength="6" style="width: 140px;">
+                <button onclick="verifyBindCode()" id="btnVerifyBind" class="btn-bind">Подтвердить</button>
+                <button onclick="cancelBind()" class="btn-cancel">Отмена</button>
+            </div>
+            <div id="bindError" style="color: #ef4444; font-size: 13px; margin-top: 8px; display: none; font-weight: 500;"></div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="grid-container">
+        
+        <!-- 1. dreamGPT AI (Главная карточка) -->
+        <div class="app-card wide" data-link="https://ai.dreampartners.online" tabindex="0" role="link">
+            <div class="app-icon"><i class="ph ph-robot"></i></div>
+            <div class="app-info">
+                <h3>dreamGPT AI</h3>
+                <p>AI-платформа: GPT-4, работа с документами и памятью.</p>
+                <div style="margin-top: 8px; font-size: 12px; opacity: 0.7;">
+                    <a href="https://ai.dreampartners.online" target="_blank" style="color: inherit; text-decoration: none; border-bottom: 1px solid rgba(255,255,255,0.3);">ai.dreampartners.online</a>
+                    <span style="margin: 0 6px;">|</span>
+                    <a href="https://t.me/dreamgptbot" target="_blank" style="color: inherit; text-decoration: none; border-bottom: 1px solid rgba(255,255,255,0.3);">@dreamgptbot</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. dreamPartners CPA -->
+        <div class="app-card" data-link="https://dreampartners.ru" tabindex="0" role="link">
+            <div class="app-icon"><i class="ph ph-globe"></i></div>
+            <div class="app-info">
+                <h3>dreamPartners</h3>
+                <p>CPA Платформа - доход до 2 млн рублей в месяц</p>
+                <div style="margin-top: 8px; font-size: 12px; opacity: 0.7;">
+                    <a href="https://dreampartners.ru" target="_blank" style="color: inherit; text-decoration: none; border-bottom: 1px solid rgba(9,9,11,0.2);">dreampartners.ru</a>
+                    <span style="margin: 0 6px;">|</span>
+                    <a href="https://t.me/dreampartnersrobot" target="_blank" style="color: inherit; text-decoration: none; border-bottom: 1px solid rgba(9,9,11,0.2);">@dreampartnersrobot</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. SwagPlayer -->
+        <div class="app-card" data-link="https://swag.dreampartners.online" tabindex="0" role="link">
+            <div class="app-icon"><i class="ph ph-music-notes"></i></div>
+            <div class="app-info">
+                <h3>SwagPlayer</h3>
+                <p>Музыкальный сервис</p>
+                <div style="margin-top: 8px; font-size: 12px; opacity: 0.7;">
+                    <a href="https://swag.dreampartners.online" target="_blank" style="color: inherit; text-decoration: none; border-bottom: 1px solid rgba(9,9,11,0.2);">swag.dreampartners.online</a>
+                    <span style="margin: 0 6px;">|</span>
+                    <a href="https://t.me/swagplayerobot" target="_blank" style="color: inherit; text-decoration: none; border-bottom: 1px solid rgba(9,9,11,0.2);">@swagplayerobot</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. dreamDownloader -->
+        <div class="app-card" data-link="https://download.dreampartners.online" tabindex="0" role="link">
+            <div class="app-icon"><i class="ph ph-download-simple"></i></div>
+            <div class="app-info">
+                <h3>dreamDownloader</h3>
+                <p>Загрузчик медиа</p>
+                <div style="margin-top: 8px; font-size: 12px; opacity: 0.7;">
+                    <a href="https://download.dreampartners.online" target="_blank" style="color: inherit; text-decoration: none; border-bottom: 1px solid rgba(9,9,11,0.2);">download.dreampartners.online</a>
+                    <span style="margin: 0 6px;">|</span>
+                    <a href="https://t.me/dreamdownload_bot" target="_blank" style="color: inherit; text-decoration: none; border-bottom: 1px solid rgba(9,9,11,0.2);">@dreamdownload_bot</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- 5. dreamSMS -->
+        <div class="app-card" data-link="https://sms.dreampartners.online" tabindex="0" role="link">
+            <div class="app-icon"><i class="ph ph-chat-text"></i></div>
+            <div class="app-info">
+                <h3>dreamSMS</h3>
+                <p>SMS API сервис</p>
+                <div style="margin-top: 8px; font-size: 12px; opacity: 0.7;">
+                    <a href="https://sms.dreampartners.online" target="_blank" style="color: inherit; text-decoration: none; border-bottom: 1px solid rgba(9,9,11,0.2);">sms.dreampartners.online</a>
+                    <span style="margin: 0 6px;">|</span>
+                    <a href="https://t.me/dream_smsbot" target="_blank" style="color: inherit; text-decoration: none; border-bottom: 1px solid rgba(9,9,11,0.2);">@dream_smsbot</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- 6. dream MP3Tag -->
+        <div class="app-card" data-link="https://mp3.dreampartners.online" tabindex="0" role="link">
+            <div class="app-icon"><i class="ph ph-tag"></i></div>
+            <div class="app-info">
+                <h3>dream MP3Tag</h3>
+                <p>Аудио редактор</p>
+                <div style="margin-top: 8px; font-size: 12px; opacity: 0.7;">
+                    <a href="https://mp3.dreampartners.online" target="_blank" style="color: inherit; text-decoration: none; border-bottom: 1px solid rgba(9,9,11,0.2);">mp3.dreampartners.online</a>
+                    <span style="margin: 0 6px;">|</span>
+                    <a href="https://t.me/mp3tag_robot" target="_blank" style="color: inherit; text-decoration: none; border-bottom: 1px solid rgba(9,9,11,0.2);">@mp3tag_robot</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- 7. dreamVPN -->
+        <div class="app-card" data-link="https://t.me/dreamvpnprobot" tabindex="0" role="link">
+            <div class="app-icon"><i class="ph ph-shield-check"></i></div>
+            <div class="app-info">
+                <h3>dreamVPN</h3>
+                <p>VPN сервис с умным балансированием</p>
+                <div style="margin-top: 8px; font-size: 12px; opacity: 0.7;">
+                    <a href="https://t.me/dreamvpnprobot" target="_blank" style="color: inherit; text-decoration: none; border-bottom: 1px solid rgba(9,9,11,0.2);">@dreamvpnprobot</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- 8. dreamShare -->
+        <div class="app-card" data-link="https://share.dreampartners.online" tabindex="0" role="link">
+            <div class="app-icon"><i class="ph ph-share-network"></i></div>
+            <div class="app-info">
+                <h3>dreamShare</h3>
+                <p>Быстрая передача файлов между устройствами</p>
+                <div style="margin-top: 8px; font-size: 12px; opacity: 0.7;">
+                    <a href="https://share.dreampartners.online" target="_blank" style="color: inherit; text-decoration: none; border-bottom: 1px solid rgba(9,9,11,0.2);">share.dreampartners.online</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- 9. dreamDisk -->
+        <div class="app-card" data-link="https://disk.dreampartners.online" tabindex="0" role="link">
+            <div class="app-icon"><i class="ph ph-hard-drives"></i></div>
+            <div class="app-info">
+                <h3>dreamDisk</h3>
+                <p>Хранилище файлов с drag & drop</p>
+                <div style="margin-top: 8px; font-size: 12px; opacity: 0.7;">
+                    <a href="https://disk.dreampartners.online" target="_blank" style="color: inherit; text-decoration: none; border-bottom: 1px solid rgba(9,9,11,0.2);">disk.dreampartners.online</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- 10. dreamPost -->
+        <div class="app-card" data-link="https://post.dreampartners.online" tabindex="0" role="link">
+            <div class="app-icon"><i class="ph ph-article"></i></div>
+            <div class="app-info">
+                <h3>dreamPost</h3>
+                <p>Платформа для публикации статей</p>
+                <div style="margin-top: 8px; font-size: 12px; opacity: 0.7;">
+                    <a href="https://post.dreampartners.online" target="_blank" style="color: inherit; text-decoration: none; border-bottom: 1px solid rgba(9,9,11,0.2);">post.dreampartners.online</a>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="integration-toggle">
+        <button type="button" onclick="toggleIntegrations()">Интеграции и API</button>
+    </div>
+    <div class="integration-section" id="integrationSection">
+        <div class="integration-header">
+            <div class="integration-title">Интеграции Dream Partners</div>
+            <div class="integration-subtitle">Открытые API, которые можно внедрять прямо сейчас.</div>
+        </div>
+        <div class="integration-grid">
+            <div class="integration-card" data-link="https://auth.dreampartners.online/docs">
+                <div class="integration-badge">01</div>
+                <div class="integration-card-body">
+                    <div class="integration-pill">dreamSSO (dreamID)</div>
+                    <div class="integration-card-title">Единый вход</div>
+                    <p>Authorization Code Flow → Bearer (30 дней), профиль по Authorization: Bearer.</p>
+                    <div class="integration-meta">
+                        <span>auth.dreampartners.online/docs</span>
+                        <span>OAuth2 / Bearer</span>
+                    </div>
+                </div>
+            </div>
+            <div class="integration-card" data-link="https://sms.dreampartners.online">
+                <div class="integration-badge">02</div>
+                <div class="integration-card-body">
+                    <div class="integration-pill">dreamSMS</div>
+                    <div class="integration-card-title">OTP и уведомления</div>
+                    <p>Приём OTP/SMS, пуши и webhooks для проверки кодов в ваших сервисах.</p>
+                    <div class="integration-meta">
+                        <span>sms.dreampartners.online</span>
+                        <span>REST / Webhook</span>
+                    </div>
+                </div>
+            </div>
+            <div class="integration-card" data-link="https://download.dreampartners.online">
+                <div class="integration-badge">03</div>
+                <div class="integration-card-body">
+                    <div class="integration-pill">dreamDownloader</div>
+                    <div class="integration-card-title">Видео → текст → summary</div>
+                    <p>Скачивание, транскрипт и краткое резюме; JSON ответ или webhook.</p>
+                    <div class="integration-meta">
+                        <span>download.dreampartners.online</span>
+                        <span>Webhook / JSON</span>
+                    </div>
+                </div>
+            </div>
+            <div class="integration-card" data-link="https://api.dreampartners.online/icons/">
+                <div class="integration-badge">04</div>
+                <div class="integration-card-body">
+                    <div class="integration-pill">Icons API</div>
+                    <div class="integration-card-title">Фавиконки по URL</div>
+                    <p>Отдаёт PNG/ICO/SVG для сайта по ссылке — удобно для каталогов и превью.</p>
+                    <div class="integration-meta">
+                        <span>api.dreampartners.online/icons</span>
+                        <span>HTTP / Cacheable</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="founder-note">
+            <span>Создал и поддерживаю все сервисы здесь. Нужна интеграция? Пишите.</span>
+            <a href="https://dreamcatcher.ru/dev" target="_blank" rel="noopener">Обо мне</a>
+        </div>
+    </div>
+
+</div>
+
+<!-- Profile Modal -->
+<div id="profileModal" class="profile-modal" style="display: none;">
+    <div class="profile-modal-overlay" onclick="closeProfileModal()"></div>
+    <div class="profile-modal-content">
+        <div class="profile-modal-header">
+            <h2 style="font-size: 24px; font-weight: 700; margin: 0;">Профиль</h2>
+            <button class="profile-modal-close" onclick="closeProfileModal()">
+                <i class="ph ph-x"></i>
+            </button>
+        </div>
+        
+        <div class="profile-modal-body">
+            <!-- Avatar Section -->
+            <div class="profile-avatar-section">
+                <div class="profile-avatar-wrapper">
+                    <div class="profile-avatar" id="modalAvatar" style="{% if avatar %}background-image: url('{{ avatar }}');{% else %}background-image: none;{% endif %} background-size: cover; background-position: center;">
+                        {% if not avatar %}{{ username[0] | upper if username else 'U' }}{% endif %}
+                    </div>
+                    <button class="profile-avatar-edit" onclick="document.getElementById('avatarFileInput').click()">
+                        <i class="ph ph-camera"></i>
+                    </button>
+                    <input type="file" id="avatarFileInput" accept="image/*" style="display: none;" onchange="handleAvatarUpload(event)">
+                </div>
+                <div class="profile-avatar-actions">
+                    <button class="profile-btn-secondary" onclick="loadAvatarFromTelegram()">
+                        <i class="ph ph-telegram-logo"></i>
+                        Загрузить из Telegram
+                    </button>
+                    <button class="profile-btn-secondary" onclick="removeAvatar()">
+                        <i class="ph ph-trash"></i>
+                        Удалить
+                    </button>
+                </div>
+            </div>
+            
+            <!-- User Info -->
+            <div class="profile-info-section">
+                <div class="profile-info-item">
+                    <label>Логин</label>
+                    <div class="profile-info-value">{{ username }}</div>
+                </div>
+                <div class="profile-info-item">
+                    <label>Телефон</label>
+                    <div class="profile-info-value">
+                        {% if phone %}{{ phone }}{% else %}<span style="color: var(--text-muted);">Не привязан</span>{% endif %}
+                    </div>
+                </div>
+                {% if telegram_username %}
+                <div class="profile-info-item">
+                    <label>Telegram</label>
+                    <div class="profile-info-value">
+                        <a href="https://t.me/{{ telegram_username }}" target="_blank" style="color: var(--text-main); text-decoration: none; border-bottom: 1px solid var(--border);">@{{ telegram_username }}</a>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            
+            <!-- Profile Edit Form -->
+            <div class="profile-edit-section">
+                <h3 style="font-size: 18px; font-weight: 600; margin-bottom: 16px; color: var(--text-main);">Дополнительная информация</h3>
+                
+                <div class="profile-form-grid">
+                    <div class="profile-form-item">
+                        <label for="profileFirstName">Имя</label>
+                        <input type="text" id="profileFirstName" class="profile-input" placeholder="Имя" value="{% if first_name %}{{ first_name }}{% endif %}">
+                    </div>
+                    
+                    <div class="profile-form-item">
+                        <label for="profileLastName">Фамилия</label>
+                        <input type="text" id="profileLastName" class="profile-input" placeholder="Фамилия" value="{% if last_name %}{{ last_name }}{% endif %}">
+                    </div>
+                    
+                    <div class="profile-form-item">
+                        <label for="profileEmail">Email</label>
+                        <input type="email" id="profileEmail" class="profile-input" placeholder="email@example.com" value="{% if email %}{{ email }}{% endif %}">
+                    </div>
+                    
+                    <div class="profile-form-item">
+                        <label for="profileCountry">Страна</label>
+                        <input type="text" id="profileCountry" class="profile-input" placeholder="Страна" value="{% if country %}{{ country }}{% endif %}">
+                    </div>
+                    
+                    <div class="profile-form-item">
+                        <label for="profileCity">Город</label>
+                        <input type="text" id="profileCity" class="profile-input" placeholder="Город" value="{% if city %}{{ city }}{% endif %}">
+                    </div>
+                    
+                    <div class="profile-form-item">
+                        <label for="profileTelegram">Telegram username</label>
+                        <input type="text" id="profileTelegram" class="profile-input" placeholder="@username" value="{% if telegram_username %}{{ telegram_username }}{% endif %}">
+                    </div>
+                </div>
+                
+                <button class="profile-btn-primary" onclick="saveProfile()" style="margin-top: 16px; width: 100%;">
+                    Сохранить изменения
+                </button>
+                
+                <div id="profileSaveMessage" style="margin-top: 12px; font-size: 14px; display: none;"></div>
+            </div>
+            
+        </div>
+        
+        <div class="profile-modal-footer">
+            <button class="profile-btn-primary" onclick="closeProfileModal()">Готово</button>
+        </div>
+    </div>
+</div>
+
+<style>
+    .profile-modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 10000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        animation: fadeIn 0.2s ease;
+    }
+    
+    .profile-modal-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.4);
+        backdrop-filter: blur(8px);
+    }
+    
+    .profile-modal-content {
+        position: relative;
+        background: var(--surface);
+        border-radius: var(--radius);
+        width: 90%;
+        max-width: 500px;
+        max-height: 90vh;
+        overflow-y: auto;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        border: 1px solid var(--border);
+        animation: slideUp 0.3s ease;
+    }
+    
+    .profile-modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 24px;
+        border-bottom: 1px solid var(--border);
+    }
+    
+    .profile-modal-close {
+        width: 32px;
+        height: 32px;
+        border: none;
+        background: var(--bg);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s;
+        color: var(--text-main);
+    }
+    
+    .profile-modal-close:hover {
+        background: var(--border);
+    }
+    
+    .profile-modal-body {
+        padding: 24px;
+    }
+    
+    .profile-avatar-section {
+        text-align: center;
+        margin-bottom: 32px;
+    }
+    
+    .profile-avatar-wrapper {
+        position: relative;
+        display: inline-block;
+        margin-bottom: 16px;
+    }
+    
+    .profile-avatar {
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        background: var(--primary);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 48px;
+        font-weight: 700;
+        border: 4px solid var(--surface);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    
+    .profile-avatar-edit {
+        position: absolute;
+        bottom: 0;
+        right: 0;
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background: var(--primary);
+        color: white;
+        border: 3px solid var(--surface);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .profile-avatar-edit:hover {
+        transform: scale(1.1);
+    }
+    
+    .profile-avatar-actions {
+        display: flex;
+        gap: 8px;
+        justify-content: center;
+    }
+    
+    .profile-btn-primary,
+    .profile-btn-secondary {
+        padding: 10px 16px;
+        border-radius: var(--radius-sm);
+        font-size: 14px;
+        font-weight: 600;
+        border: none;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-family: inherit;
+    }
+    
+    .profile-btn-primary {
+        background: var(--primary);
+        color: white;
+    }
+    
+    .profile-btn-primary:hover {
+        opacity: 0.9;
+    }
+    
+    .profile-btn-secondary {
+        background: var(--bg);
+        color: var(--text-main);
+        border: 1px solid var(--border);
+    }
+    
+    .profile-btn-secondary:hover {
+        background: var(--border);
+    }
+    
+    .profile-info-section {
+        margin-bottom: 24px;
+        padding-bottom: 24px;
+        border-bottom: 1px solid var(--border);
+    }
+    
+    .profile-info-item {
+        margin-bottom: 16px;
+    }
+    
+    .profile-info-item label {
+        display: block;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text-muted);
+        margin-bottom: 4px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .profile-info-value {
+        font-size: 16px;
+        color: var(--text-main);
+        font-weight: 500;
+    }
+    
+    .profile-edit-section {
+        margin-top: 24px;
+        padding-top: 24px;
+    }
+    
+    .profile-form-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 16px;
+    }
+    
+    .profile-form-item {
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .profile-form-item label {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text-muted);
+        margin-bottom: 6px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .profile-input {
+        width: 100%;
+        padding: 12px 16px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        font-size: 14px;
+        font-family: inherit;
+        background: var(--bg);
+        color: var(--text-main);
+        outline: none;
+        transition: all 0.2s;
+    }
+    
+    .profile-input:focus {
+        border-color: var(--text-main);
+        background: var(--surface);
+    }
+    
+    @media (max-width: 600px) {
+        .profile-form-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+    
+    .profile-modal-footer {
+        padding: 24px;
+        border-top: 1px solid var(--border);
+        display: flex;
+        justify-content: flex-end;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+    
+    @keyframes slideUp {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    @media (max-width: 600px) {
+        .profile-modal-content {
+            width: 100%;
+            max-width: 100%;
+            border-radius: 0;
+            max-height: 100vh;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Bind Phone Logic
+    async function sendBindCode() {
+        const phoneInput = document.getElementById('bindPhoneInput');
+        const btn = document.getElementById('btnSendBind');
+        const errorDiv = document.getElementById('bindError');
+        const phone = phoneInput.value.trim();
+        
+        if (!phone) {
+            showBindError('Введите номер телефона');
+            return;
+        }
+        
+        btn.disabled = true;
+        btn.textContent = 'Отправка...';
+        errorDiv.style.display = 'none';
+        
+        try {
+            const response = await fetch('/api/user/bind-phone/send', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({phone: phone})
+            });
+            const data = await response.json();
+            
+            if (data.success) {
+                document.getElementById('bindStep1').style.display = 'none';
+                document.getElementById('bindStep2').style.display = 'flex';
+                document.getElementById('bindCodeInput').focus();
+            } else {
+                showBindError(data.error || 'Ошибка отправки');
+            }
+        } catch (e) {
+            showBindError('Ошибка соединения');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Привязать';
+        }
+    }
+    
+    async function verifyBindCode() {
+        const codeInput = document.getElementById('bindCodeInput');
+        const btn = document.getElementById('btnVerifyBind');
+        const code = codeInput.value.trim();
+        
+        if (!code) return;
+        
+        btn.disabled = true;
+        btn.textContent = '...';
+        
+        try {
+            const response = await fetch('/api/user/bind-phone/verify', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({code: code})
+            });
+            const data = await response.json();
+            
+            if (data.success) {
+                // Reload to update UI
+                window.location.reload();
+            } else {
+                showBindError(data.error || 'Неверный код');
+                btn.disabled = false;
+                btn.textContent = 'Подтвердить';
+            }
+        } catch (e) {
+            showBindError('Ошибка соединения');
+            btn.disabled = false;
+            btn.textContent = 'Подтвердить';
+        }
+    }
+    
+    function cancelBind() {
+        document.getElementById('bindStep2').style.display = 'none';
+        document.getElementById('bindStep1').style.display = 'flex';
+        document.getElementById('bindCodeInput').value = '';
+        document.getElementById('bindError').style.display = 'none';
+    }
+    
+    function showBindError(msg) {
+        const el = document.getElementById('bindError');
+        el.textContent = msg;
+        el.style.display = 'block';
+    }
+
+    // Animation for Dashboard
+    const tl = gsap.timeline();
+
+    // 1. Header Animation
+    tl.fromTo('.dash-header', 
+        { y: -30, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.6, ease: 'power3.out' }
+    );
+
+    // 2. Cards Animation
+    tl.fromTo('.app-card', 
+        { y: 60, opacity: 0 },
+        { 
+            y: 0, 
+            opacity: 1, 
+            duration: 0.8, 
+            stagger: 0.1, 
+            ease: 'cubic-bezier(0.16, 1, 0.3, 1)',
+            clearProps: 'transform'
+        },
+        "-=0.4"
+    );
+
+    // Clickable cards (open service URLs)
+    function setupCardLinks() {
+        const cards = document.querySelectorAll('.app-card[data-link]');
+        cards.forEach(card => {
+            const url = card.getAttribute('data-link');
+            if (!url) return;
+            card.addEventListener('click', (e) => {
+                if (e.target.closest('a, button')) return;
+                window.open(url, '_blank');
+            });
+            card.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    window.open(url, '_blank');
+                }
+            });
+        });
+    }
+    setupCardLinks();
+
+    // Clickable integration cards
+    function setupIntegrationLinks() {
+        const cards = document.querySelectorAll('.integration-card[data-link]');
+        cards.forEach(card => {
+            const url = card.getAttribute('data-link');
+            if (!url) return;
+            card.addEventListener('click', (e) => {
+                if (e.target.closest('a, button')) return;
+                window.open(url, '_blank');
+            });
+            card.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    window.open(url, '_blank');
+                }
+            });
+            card.setAttribute('tabindex', '0');
+            card.setAttribute('role', 'link');
+        });
+    }
+    setupIntegrationLinks();
+
+    // Toggle integrations visibility
+    function toggleIntegrations() {
+        const section = document.getElementById('integrationSection');
+        if (section.classList.contains('open')) {
+            section.classList.remove('open');
+        } else {
+            section.classList.add('open');
+        }
+    }
+    
+    // Profile Modal Functions
+    function openProfileModal() {
+        document.getElementById('profileModal').style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+        // Автоматически загружаем профиль при открытии модального окна
+        loadProfile();
+    }
+    
+    function closeProfileModal() {
+        document.getElementById('profileModal').style.display = 'none';
+        document.body.style.overflow = '';
+    }
+    
+    // Close modal on Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeProfileModal();
+        }
+    });
+    
+    async function handleAvatarUpload(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        
+        if (!file.type.startsWith('image/')) {
+            alert('Пожалуйста, выберите изображение');
+            return;
+        }
+        
+        if (file.size > 5 * 1024 * 1024) {
+            alert('Размер файла не должен превышать 5 МБ');
+            return;
+        }
+        
+        // Convert to base64 or upload to server
+        const reader = new FileReader();
+        reader.onload = async function(e) {
+            const base64 = e.target.result;
+            // For now, we'll use a data URL. In production, upload to a CDN
+            await saveAvatar(base64);
+        };
+        reader.readAsDataURL(file);
+    }
+    
+    async function saveAvatar(avatarUrl) {
+        try {
+            const response = await fetch('/api/user/avatar', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({avatar: avatarUrl})
+            });
+            
+            const data = await response.json();
+            if (data.success) {
+                updateAvatarDisplay(data.avatar);
+            } else {
+                alert('Ошибка: ' + (data.error || 'Не удалось сохранить аватар'));
+            }
+        } catch (e) {
+            alert('Ошибка соединения');
+        }
+    }
+    
+    async function loadAvatarFromTelegram() {
+        try {
+            const response = await fetch('/api/user/avatar/telegram', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'}
+            });
+            
+            const data = await response.json();
+            if (data.success) {
+                updateAvatarDisplay(data.avatar);
+                alert('Аватар успешно загружен из Telegram');
+            } else {
+                alert('Ошибка: ' + (data.error || 'Не удалось загрузить аватар'));
+            }
+        } catch (e) {
+            alert('Ошибка соединения');
+        }
+    }
+    
+    async function removeAvatar() {
+        if (!confirm('Удалить аватар?')) return;
+        
+        await saveAvatar('');
+    }
+    
+    function updateAvatarDisplay(avatarUrl) {
+        const avatarElements = document.querySelectorAll('#userAvatar, #modalAvatar');
+        const usernameInitial = '{{ username[0] | upper if username else "U" }}';
+        avatarElements.forEach(el => {
+            if (avatarUrl) {
+                el.style.backgroundImage = `url('${avatarUrl}')`;
+                el.textContent = '';
+            } else {
+                el.style.backgroundImage = 'none';
+                el.textContent = usernameInitial;
+            }
+        });
+    }
+    
+    // Save profile
+    async function saveProfile() {
+        const btn = event.target;
+        const originalText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = 'Сохранение...';
+        
+        const messageDiv = document.getElementById('profileSaveMessage');
+        messageDiv.style.display = 'none';
+        
+        const profileData = {
+            first_name: document.getElementById('profileFirstName').value.trim() || null,
+            last_name: document.getElementById('profileLastName').value.trim() || null,
+            email: document.getElementById('profileEmail').value.trim() || null,
+            country: document.getElementById('profileCountry').value.trim() || null,
+            city: document.getElementById('profileCity').value.trim() || null,
+            telegram_username: document.getElementById('profileTelegram').value.trim().replace('@', '') || null
+        };
+        
+        try {
+            const response = await fetch('/api/user/profile', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(profileData)
+            });
+            
+            const data = await response.json();
+            if (data.success) {
+                messageDiv.textContent = '✓ Профиль сохранен';
+                messageDiv.style.color = 'var(--text-main)';
+                messageDiv.style.display = 'block';
+                setTimeout(() => {
+                    messageDiv.style.display = 'none';
+                }, 3000);
+            } else {
+                messageDiv.textContent = 'Ошибка: ' + (data.error || 'Не удалось сохранить');
+                messageDiv.style.color = '#ef4444';
+                messageDiv.style.display = 'block';
+            }
+        } catch (e) {
+            messageDiv.textContent = 'Ошибка соединения';
+            messageDiv.style.color = '#ef4444';
+            messageDiv.style.display = 'block';
+        } finally {
+            btn.disabled = false;
+            btn.textContent = originalText;
+        }
+    }
+    
+    // Load profile data on page load
+    async function loadProfile() {
+        try {
+            const response = await fetch('/api/user/profile');
+            const data = await response.json();
+            if (data.success) {
+                if (data.user.avatar) {
+                    updateAvatarDisplay(data.user.avatar);
+                }
+                // Заполняем поля формы если они пустые
+                if (data.user.first_name && !document.getElementById('profileFirstName').value) {
+                    document.getElementById('profileFirstName').value = data.user.first_name;
+                }
+                if (data.user.last_name && !document.getElementById('profileLastName').value) {
+                    document.getElementById('profileLastName').value = data.user.last_name;
+                }
+                if (data.user.email && !document.getElementById('profileEmail').value) {
+                    document.getElementById('profileEmail').value = data.user.email;
+                }
+                if (data.user.country && !document.getElementById('profileCountry').value) {
+                    document.getElementById('profileCountry').value = data.user.country;
+                }
+                if (data.user.city && !document.getElementById('profileCity').value) {
+                    document.getElementById('profileCity').value = data.user.city;
+                }
+                // Автоматически заполняем telegram_username если он получен
+                if (data.user.telegram_username) {
+                    const telegramInput = document.getElementById('profileTelegram');
+                    if (!telegramInput.value) {
+                        telegramInput.value = data.user.telegram_username;
+                    }
+                }
+            }
+        } catch (e) {
+            console.error('Failed to load profile:', e);
+        }
+    }
+    
+    loadProfile();
+</script>
+{% endblock %}

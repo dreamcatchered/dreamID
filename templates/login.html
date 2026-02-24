@@ -1,0 +1,584 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="login-wrapper" id="loginView">
+    <div class="login-card">
+        <div class="logo-badge"><i class="ph ph-asterisk-simple"></i></div>
+        <h1 style="font-size: 24px; margin-bottom: 8px;">dreamID</h1>
+        <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 24px;">Вход в экосистему</p>
+
+        {% if sso %}
+        <div style="background: #F4F4F5; padding: 10px; border-radius: 8px; margin-bottom: 20px; font-size: 13px;">
+            <p>Для доступа к сервису необходимо войти в dreamID</p>
+        </div>
+        {% endif %}
+
+        <div class="login-method-toggle" style="display: flex; gap: 4px; margin-bottom: 24px; background: #F4F4F5; padding: 4px; border-radius: 14px;">
+            <button type="button" class="method-btn active" data-method="sms" style="flex: 1; border: none; padding: 10px; border-radius: 10px; font-weight: 500; cursor: pointer; background: #FFFFFF; color: #09090B; box-shadow: 0 2px 4px rgba(0,0,0,0.04); transition: all 0.2s;">По коду</button>
+            <button type="button" class="method-btn" data-method="password" style="flex: 1; border: none; padding: 10px; border-radius: 10px; font-weight: 500; cursor: pointer; background: transparent; color: #71717A; transition: all 0.2s;">По паролю</button>
+        </div>
+
+        <form id="loginForm" data-method="sms">
+            <!-- Form Content Wrapper for smooth height animation -->
+            <div id="formContentWrapper" style="position: relative; overflow: hidden;">
+                
+                <!-- SMS METHOD -->
+                <div id="smsMethod" class="method-section">
+                <div id="smsStep1">
+                    <div class="input-stack">
+                        <input type="tel" class="custom-input" id="smsPhone" placeholder="Номер телефона" required autocomplete="tel">
+                    </div>
+                    <p class="hint-text" style="margin-top: 8px;">
+                        Для получения кода нужен Telegram бот: 
+                        <a href="https://t.me/dream_smsbot" target="_blank" style="color: var(--primary); text-decoration: none; font-weight: 500;">@dream_smsbot</a>
+                    </p>
+                </div>
+
+                <div id="smsStep2" style="display: none;">
+                    <div style="margin-bottom: 16px; font-size: 13px; color: var(--text-muted);">
+                        Код отправлен на <span id="smsPhoneDisplay" style="font-weight: 600; color: var(--text-main);"></span>
+                    </div>
+                    <div class="input-stack">
+                        <input type="text" class="custom-input" id="smsCode" placeholder="Код из Telegram" maxlength="6" autocomplete="one-time-code">
+                    </div>
+                    <div style="margin-top: 10px; text-align: center;">
+                        <a href="#" onclick="backToSmsStep1(); return false;" style="font-size: 13px; color: var(--text-muted); text-decoration: none;">← Изменить номер</a>
+                    </div>
+                </div>
+
+                <!-- NEW USER REGISTRATION FIELDS -->
+                <div id="smsRegisterFields" style="display: none; margin-top: 12px;">
+                    <div class="input-stack">
+                        <input type="text" class="custom-input" id="newUsername" placeholder="Придумайте логин" autocomplete="username">
+                        <input type="password" class="custom-input" id="newPassword" placeholder="Придумайте пароль (мин. 6 символов)" autocomplete="new-password">
+                    </div>
+                </div>
+                </div>
+
+            <!-- PASSWORD METHOD -->
+            <div id="passwordMethod" class="method-section" style="display: none; opacity: 0;">
+                <div class="input-stack">
+                    <input type="text" class="custom-input" id="username" placeholder="Логин или номер телефона" autocomplete="username">
+                    <input type="password" class="custom-input" id="password" placeholder="Пароль" autocomplete="current-password">
+                </div>
+            </div>
+            </div>
+            
+            <button type="submit" class="btn-primary" id="submitBtn" style="margin-top: 16px;">Отправить код</button>
+
+            <div id="alert" class="alert"></div>
+
+            <div class="divider">или</div>
+
+            <button type="button" class="btn-fast-login" id="quickLoginBtn">
+                <i class="ph ph-fingerprint" style="font-size: 20px;"></i>
+                Быстрый вход через Telegram
+            </button>
+            
+            <div style="margin-top: 24px; font-size: 14px; color: var(--text-muted); padding-top: 16px; border-top: 1px solid var(--border);">
+                Нет аккаунта? <a href="{{ url_for('register') }}" style="color: var(--text-main); text-decoration: none; font-weight: 500;">Создать</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Initial Animation
+    gsap.from(".login-card", {
+        duration: 0.6,
+        y: 30,
+        opacity: 0,
+        ease: "power3.out"
+    });
+
+    const isSSO = {{ 'true' if sso else 'false' }};
+    let smsStep = 1;
+    let smsPhoneValue = '';
+    let isNewUser = false;
+
+    // Auto-submit Code
+    document.getElementById('smsCode').addEventListener('input', function() {
+        this.value = this.value.replace(/\D/g, ''); // Only numbers
+        if (this.value.length === 6) {
+            const btn = document.getElementById('submitBtn');
+            if (!btn.disabled) {
+                document.getElementById('loginForm').requestSubmit();
+            }
+        }
+    });
+
+    // Restrict Phone Input (Only numbers and +)
+    document.getElementById('smsPhone').addEventListener('input', function() {
+         // Allow digits and + at the beginning
+         this.value = this.value.replace(/[^\d+]/g, '');
+    });
+
+    // Toggle Methods
+    document.querySelectorAll('.method-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const method = this.dataset.method;
+            if (document.getElementById('loginForm').dataset.method === method) return;
+
+            // UI Toggle
+            document.querySelectorAll('.method-btn').forEach(b => {
+                b.classList.remove('active');
+                b.style.background = 'transparent';
+                b.style.color = '#71717A';
+                b.style.boxShadow = 'none';
+            });
+            this.classList.add('active');
+            this.style.background = '#FFFFFF';
+            this.style.color = '#09090B';
+            this.style.boxShadow = '0 2px 4px rgba(0,0,0,0.04)';
+
+            document.getElementById('loginForm').dataset.method = method;
+            
+            const wrapper = document.getElementById('formContentWrapper');
+            const passwordMethod = document.getElementById('passwordMethod');
+            const smsMethod = document.getElementById('smsMethod');
+            const submitBtn = document.getElementById('submitBtn');
+            const alert = document.getElementById('alert');
+            alert.style.display = 'none';
+
+            // Determine current and target
+            let currentMethod, targetMethod;
+            if (method === 'password') {
+                currentMethod = smsMethod;
+                targetMethod = passwordMethod;
+                submitBtn.textContent = 'Войти';
+                
+                // Attributes
+                document.getElementById('username').setAttribute('required', '');
+                document.getElementById('password').setAttribute('required', '');
+                document.getElementById('smsPhone').removeAttribute('required');
+                document.getElementById('smsCode').removeAttribute('required');
+            } else {
+                currentMethod = passwordMethod;
+                targetMethod = smsMethod;
+                submitBtn.textContent = 'Отправить код';
+                
+                // Reset SMS view if needed (optional, but good UX)
+                if (smsStep !== 1) backToSmsStep1(false);
+
+                // Attributes
+                document.getElementById('username').removeAttribute('required');
+                document.getElementById('password').removeAttribute('required');
+                document.getElementById('smsPhone').setAttribute('required', '');
+            }
+
+            // SMOOTH TRANSITION LOGIC
+            // 1. Lock wrapper height
+            const startHeight = wrapper.offsetHeight;
+            wrapper.style.height = startHeight + 'px';
+
+            // 2. Position absolute for cross-fade
+            currentMethod.style.position = 'absolute';
+            currentMethod.style.top = '0';
+            currentMethod.style.left = '0';
+            currentMethod.style.width = '100%';
+            
+            // 3. Prepare target
+            targetMethod.style.display = 'block';
+            targetMethod.style.opacity = 0;
+            targetMethod.style.position = 'absolute';
+            targetMethod.style.top = '0';
+            targetMethod.style.left = '0';
+            targetMethod.style.width = '100%';
+
+            // 4. Get target height (must be relative/block temporarily to measure, or just measure absolute content)
+            // Since it's absolute, it won't expand parent. We measure scrollHeight.
+            const targetHeight = targetMethod.scrollHeight;
+
+            // 5. Animate
+            const tl = gsap.timeline({
+                onComplete: () => {
+                    // Cleanup after animation
+                    wrapper.style.height = 'auto';
+                    currentMethod.style.display = 'none';
+                    currentMethod.style.position = 'relative';
+                    targetMethod.style.position = 'relative';
+                    targetMethod.style.opacity = 1;
+                }
+            });
+
+            tl.to(currentMethod, {opacity: 0, duration: 0.2})
+              .to(wrapper, {height: targetHeight, duration: 0.3, ease: "power2.out"}, "<")
+              .to(targetMethod, {opacity: 1, duration: 0.3}, "-=0.1");
+        });
+    });
+
+    function backToSmsStep1(animate = true) {
+        const smsStep1 = document.getElementById('smsStep1');
+        const smsStep2 = document.getElementById('smsStep2');
+        const registerFields = document.getElementById('smsRegisterFields');
+        const submitBtn = document.getElementById('submitBtn');
+        const wrapper = document.getElementById('formContentWrapper');
+
+        if (animate) {
+            // Animate height for step transition
+            const startHeight = wrapper.offsetHeight;
+            wrapper.style.height = startHeight + 'px';
+
+            // Calculate target height
+            // We need to temporarily show step1 to measure it
+            const currentDisplay = smsStep1.style.display;
+            const currentPos = smsStep1.style.position;
+            const currentVis = smsStep1.style.visibility;
+            
+            smsStep1.style.display = 'block';
+            smsStep1.style.position = 'absolute';
+            smsStep1.style.visibility = 'hidden';
+            const targetHeight = smsStep1.scrollHeight;
+            
+            // Restore
+            smsStep1.style.display = currentDisplay;
+            smsStep1.style.position = currentPos;
+            smsStep1.style.visibility = currentVis;
+
+            gsap.to([smsStep2, registerFields], {
+                opacity: 0, duration: 0.2, onComplete: () => {
+                    smsStep2.style.display = 'none';
+                    registerFields.style.display = 'none';
+                    smsStep1.style.display = 'block';
+                    smsStep1.style.opacity = 0;
+                    
+                    gsap.to(wrapper, {height: targetHeight, duration: 0.3, ease: "power2.out", onComplete: () => {
+                        wrapper.style.height = 'auto';
+                    }});
+                    
+                    gsap.to(smsStep1, {opacity: 1, duration: 0.3});
+                }
+            });
+        } else {
+            smsStep2.style.display = 'none';
+            registerFields.style.display = 'none';
+            smsStep1.style.display = 'block';
+            smsStep1.style.opacity = 1;
+        }
+        
+        submitBtn.textContent = 'Отправить код';
+        smsStep = 1;
+        isNewUser = false;
+        document.getElementById('smsPhone').setAttribute('required', '');
+        document.getElementById('smsCode').removeAttribute('required');
+        document.getElementById('smsCode').value = '';
+        document.getElementById('newUsername').value = '';
+        document.getElementById('newPassword').value = '';
+    }
+
+    // Alert Helper
+    function showAlert(message, type) {
+        const alert = document.getElementById('alert');
+        alert.textContent = message;
+        alert.className = 'alert alert-' + type;
+        alert.style.display = 'block';
+        if (type === 'success') {
+            setTimeout(() => { alert.style.display = 'none'; }, 5000);
+        }
+    }
+
+    // Quick Login Logic
+    document.getElementById('quickLoginBtn').addEventListener('click', async function() {
+        const btn = this;
+        const originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="ph ph-spinner" style="animation: spin 1s linear infinite;"></i> Генерация...';
+        
+        try {
+            const urlParams = new URLSearchParams(window.location.search);
+            const response = await fetch('/api/quick-login/generate', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    redirect_uri: urlParams.get('redirect_uri') || '',
+                    client_id: urlParams.get('client_id') || '',
+                    state: urlParams.get('state') || ''
+                })
+            });
+            const data = await response.json();
+            if (data.success && data.bot_link) {
+                window.location.href = data.bot_link;
+            } else {
+                showAlert('❌ Ошибка: ' + (data.error || 'Unknown'), 'error');
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        } catch (error) {
+            showAlert('❌ Ошибка соединения', 'error');
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    });
+
+    // Login Logic
+    document.getElementById('loginForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const btn = document.getElementById('submitBtn');
+        const originalText = btn.textContent;
+        const method = this.dataset.method;
+        
+        btn.disabled = true;
+
+        // === SMS METHOD LOGIC ===
+        if (method === 'sms') {
+            if (smsStep === 1) {
+                // SEND CODE
+                const phone = document.getElementById('smsPhone').value.trim();
+                if (!phone) {
+                    showAlert('❌ Введите номер телефона', 'error');
+                    btn.disabled = false;
+                    return;
+                }
+
+                btn.textContent = 'Отправка...';
+
+                try {
+                    const response = await fetch('/api/login/sms/send', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({phone: phone})
+                    });
+                    const data = await response.json();
+
+                    if (data.success) {
+                        smsPhoneValue = phone;
+                        isNewUser = !data.is_registered;
+                        document.getElementById('smsPhoneDisplay').textContent = phone;
+                        
+                        // Update requirements
+                        document.getElementById('smsPhone').removeAttribute('required');
+                        document.getElementById('smsCode').setAttribute('required', '');
+
+                        // Show Step 2 with height animation
+                        const s1 = document.getElementById('smsStep1');
+                        const s2 = document.getElementById('smsStep2');
+                        const wrapper = document.getElementById('formContentWrapper');
+                        
+                        // 1. Lock height
+                        const startHeight = wrapper.offsetHeight;
+                        wrapper.style.height = startHeight + 'px';
+                        
+                        // 2. Measure target height (s2)
+                        s2.style.display = 'block';
+                        s2.style.position = 'absolute';
+                        s2.style.visibility = 'hidden';
+                        s2.style.width = '100%';
+                        const targetHeight = s2.scrollHeight;
+                        s2.style.display = 'none';
+                        s2.style.position = 'relative';
+                        s2.style.visibility = 'visible';
+
+                        // 3. Animate
+                        gsap.to(s1, {
+                            opacity: 0, duration: 0.2, onComplete: () => {
+                                s1.style.display = 'none';
+                                s2.style.display = 'block';
+                                s2.style.opacity = 0;
+                                
+                                gsap.to(wrapper, {
+                                    height: targetHeight, 
+                                    duration: 0.3, 
+                                    ease: "power2.out",
+                                    onComplete: () => { wrapper.style.height = 'auto'; }
+                                });
+                                
+                                gsap.to(s2, {opacity: 1, duration: 0.3});
+                                document.getElementById('smsCode').focus();
+                            }
+                        });
+
+                        btn.textContent = isNewUser ? 'Продолжить' : 'Войти';
+                        smsStep = 2;
+                        btn.disabled = false;
+                        showAlert('✅ Код отправлен в Telegram!', 'success');
+                    } else {
+                         let errorMsg = data.error || 'Ошибка отправки кода';
+                        if (errorMsg.includes('not registered')) errorMsg = 'Номер не зарегистрирован в боте @dream_smsbot.';
+                        showAlert('❌ ' + errorMsg, 'error');
+                        btn.disabled = false;
+                        btn.textContent = originalText;
+                    }
+                } catch (error) {
+                    showAlert('❌ Ошибка соединения', 'error');
+                    btn.disabled = false;
+                    btn.textContent = originalText;
+                }
+            } else if (smsStep === 2) {
+                // VERIFY CODE
+                const code = document.getElementById('smsCode').value.trim();
+                if (!code) {
+                    showAlert('❌ Введите код', 'error');
+                    btn.disabled = false;
+                    return;
+                }
+                
+                btn.textContent = 'Проверка...';
+
+                try {
+                    const response = await fetch('/api/login/sms/verify', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            code: code,
+                            phone: smsPhoneValue
+                        })
+                    });
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        if (data.is_new_user) {
+                            // Show Registration Fields
+                            showAlert('✅ Код подтвержден! Придумайте логин и пароль.', 'success');
+                            const regFields = document.getElementById('smsRegisterFields');
+                            const wrapper = document.getElementById('formContentWrapper');
+                            
+                            // Animate height expansion
+                            const startHeight = wrapper.offsetHeight;
+                            wrapper.style.height = startHeight + 'px';
+                            
+                            regFields.style.display = 'block';
+                            regFields.style.opacity = 0;
+                            
+                            // Calculate new total height (content is relative now)
+                            const targetHeight = wrapper.scrollHeight; 
+                            
+                            gsap.to(wrapper, {
+                                height: targetHeight,
+                                duration: 0.3,
+                                ease: "power2.out",
+                                onComplete: () => { wrapper.style.height = 'auto'; }
+                            });
+                            
+                            gsap.to(regFields, {opacity: 1, duration: 0.3});
+                            
+                            smsStep = 3;
+                            btn.textContent = 'Создать аккаунт';
+                            btn.disabled = false;
+                        } else {
+                            handleLoginSuccess(data);
+                        }
+                    } else {
+                        let errorMsg = data.error || 'Ошибка входа';
+                        if (errorMsg.includes('Invalid code')) errorMsg = 'Неверный код';
+                        showAlert('❌ ' + errorMsg, 'error');
+                        btn.disabled = false;
+                        btn.textContent = originalText;
+                    }
+                } catch (error) {
+                    showAlert('❌ Ошибка соединения', 'error');
+                    btn.disabled = false;
+                    btn.textContent = originalText;
+                }
+            } else if (smsStep === 3) {
+                // COMPLETE REGISTRATION
+                const username = document.getElementById('newUsername').value.trim();
+                const password = document.getElementById('newPassword').value;
+                const code = document.getElementById('smsCode').value.trim();
+
+                if (!username || !password) {
+                    showAlert('❌ Заполните логин и пароль', 'error');
+                    btn.disabled = false;
+                    return;
+                }
+
+                btn.textContent = 'Создание...';
+
+                try {
+                    const response = await fetch('/api/register/step2', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            code: code,
+                            username: username,
+                            password: password
+                        })
+                    });
+                    const data = await response.json();
+
+                    if (data.success) {
+                        handleLoginSuccess(data);
+                    } else {
+                        showAlert('❌ ' + (data.error || 'Ошибка регистрации'), 'error');
+                        btn.disabled = false;
+                        btn.textContent = originalText;
+                    }
+                } catch (error) {
+                    showAlert('❌ Ошибка соединения', 'error');
+                    btn.disabled = false;
+                    btn.textContent = originalText;
+                }
+            }
+            return;
+        }
+        
+        // === PASSWORD METHOD LOGIC ===
+        const usernameInput = document.getElementById('username');
+        const passwordInput = document.getElementById('password');
+        
+        const username = usernameInput.value.trim();
+        const password = passwordInput.value;
+        
+        if (!username || !password) {
+            showAlert('❌ Заполните все поля', 'error');
+            btn.disabled = false;
+            return;
+        }
+        
+        btn.textContent = 'Вход...';
+        
+        const formData = { username: username, password: password };
+        
+        try {
+            const response = await fetch('/api/login', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(formData)
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                handleLoginSuccess(data);
+            } else {
+                let errorMsg = data.error || 'Ошибка входа';
+                if (errorMsg.includes('Invalid credentials')) {
+                    errorMsg = 'Неверный логин или пароль';
+                }
+                showAlert('❌ ' + errorMsg, 'error');
+                btn.disabled = false;
+                btn.textContent = originalText;
+            }
+        } catch (error) {
+            showAlert('❌ Ошибка соединения', 'error');
+            btn.disabled = false;
+            btn.textContent = originalText;
+        }
+    });
+
+    function handleLoginSuccess(data) {
+        showAlert('✅ Успешный вход!', 'success');
+        const tl = gsap.timeline();
+        tl.to('.login-card', {
+            duration: 0.5,
+            opacity: 0,
+            y: 30,
+            scale: 0.95,
+            filter: "blur(10px)",
+            ease: 'power2.in',
+            onComplete: () => {
+                if (data.sso && data.redirect) {
+                    window.location.href = data.redirect;
+                } else {
+                    window.location.href = '/';
+                }
+            }
+        });
+    }
+</script>
+<style>
+@keyframes spin { 100% { transform: rotate(360deg); } }
+</style>
+{% endblock %}
