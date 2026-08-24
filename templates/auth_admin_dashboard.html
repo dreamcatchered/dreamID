@@ -353,7 +353,7 @@
             <div class="stat-card">
                 <div class="stat-icon">👥</div>
                 <div class="stat-label">Всего пользователей</div>
-                <div class="stat-value" id="totalUsers">0</div>
+                <div class="stat-value"><span id="totalUsers">0</span> <small style="font-size: 14px; color: #dc3545; font-weight: normal;">(🚫 <span id="blockedUsers">0</span>)</small></div>
             </div>
             <div class="stat-card">
                 <div class="stat-icon">🔑</div>
@@ -375,6 +375,7 @@
         <div class="tabs">
             <button class="tab active" onclick="switchTab('clients')">🔑 OAuth Клиенты</button>
             <button class="tab" onclick="switchTab('users')">👥 Пользователи</button>
+            <button class="tab" onclick="switchTab('activity')">📜 Активность</button>
             <button class="tab" onclick="switchTab('tokens')">🎫 Токены</button>
         </div>
         
@@ -387,6 +388,13 @@
         
         <div id="usersTab" class="tab-content">
             <div id="usersContent"></div>
+        </div>
+        
+        <div id="activityTab" class="tab-content">
+            <div class="actions">
+                <button class="btn" onclick="loadActivity()">🔄 Обновить</button>
+            </div>
+            <div id="activityContent"></div>
         </div>
         
         <div id="tokensTab" class="tab-content">
@@ -489,6 +497,11 @@
             
             event.target.classList.add('active');
             document.getElementById(tab + 'Tab').classList.add('active');
+            
+            if (tab === 'activity') loadActivity();
+            if (tab === 'users') loadUsers();
+            if (tab === 'clients') loadClients();
+            if (tab === 'tokens') loadTokens();
         }
         
         async function loadStats() {
@@ -497,6 +510,7 @@
                 const data = await response.json();
                 
                 document.getElementById('totalUsers').textContent = data.total_users || 0;
+                document.getElementById('blockedUsers').textContent = data.blocked_users || 0;
                 document.getElementById('totalClients').textContent = data.total_clients || 0;
                 document.getElementById('activeTokens').textContent = data.active_tokens || 0;
                 document.getElementById('auth24h').textContent = data.auth_24h || 0;
@@ -583,17 +597,29 @@
                                 <th>Username</th>
                                 <th>Telegram</th>
                                 <th>Телефон</th>
+                                <th>Статус</th>
                                 <th>Зарегистрирован</th>
+                                <th>Действия</th>
                             </tr>
                         </thead>
                         <tbody>
                             ${data.users.map(user => `
-                                <tr>
+                                <tr style="${user.blocked ? 'background: #fff5f5;' : ''}">
                                     <td>${user.id}</td>
                                     <td><strong>${user.username}</strong></td>
                                     <td>${user.telegram_username ? '@' + user.telegram_username : '-'}<br><small>${user.telegram_id || ''}</small></td>
                                     <td>${user.phone || '-'}</td>
+                                    <td>
+                                        ${user.blocked ? 
+                                            '<span class="badge badge-danger">Заблокирован</span>' : 
+                                            '<span class="badge badge-success">Активен</span>'}
+                                    </td>
                                     <td>${new Date(user.created_at).toLocaleDateString('ru-RU')}</td>
+                                    <td>
+                                        ${user.blocked ? 
+                                            `<button class="action-btn" onclick="unblockUser(${user.id})">✅ Разблокировать</button>` : 
+                                            `<button class="action-btn" onclick="blockUser(${user.id})">🚫 Заблокировать</button>`}
+                                    </td>
                                 </tr>
                             `).join('')}
                         </tbody>
@@ -601,6 +627,83 @@
                 `;
             } catch (error) {
                 console.error('Error loading users:', error);
+            }
+        }
+
+        async function loadActivity() {
+            try {
+                const response = await fetch('/api/admin/activity');
+                const data = await response.json();
+                
+                const content = document.getElementById('activityContent');
+                
+                if (!data.activity || data.activity.length === 0) {
+                    content.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">📜</div>
+                            <div>Нет записей об активности</div>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                content.innerHTML = `
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Время</th>
+                                <th>Пользователь</th>
+                                <th>Клиент</th>
+                                <th>Действие</th>
+                                <th>Детали</th>
+                                <th>IP</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.activity.map(log => `
+                                <tr>
+                                    <td><small>${new Date(log.timestamp).toLocaleString('ru-RU')}</small></td>
+                                    <td><strong>${log.username}</strong></td>
+                                    <td><code>${log.client_id || '-'}</code></td>
+                                    <td><span class="badge ${log.action === 'authorize' ? 'badge-success' : 'badge-warning'}">${log.action}</span></td>
+                                    <td><small>${log.details || '-'}</small></td>
+                                    <td><small>${log.ip_address || '-'}</small></td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+            } catch (error) {
+                console.error('Error loading activity:', error);
+            }
+        }
+
+        async function blockUser(userId) {
+            if (!confirm('Заблокировать пользователя? он не сможет войти в систему.')) return;
+            try {
+                const response = await fetch(`/api/admin/users/${userId}/block`, { method: 'POST' });
+                const data = await response.json();
+                if (data.success) {
+                    loadUsers();
+                    loadStats();
+                } else {
+                    alert(data.error);
+                }
+            } catch (error) {
+                alert('Ошибка блокировки');
+            }
+        }
+
+        async function unblockUser(userId) {
+            try {
+                const response = await fetch(`/api/admin/users/${userId}/unblock`, { method: 'POST' });
+                const data = await response.json();
+                if (data.success) {
+                    loadUsers();
+                    loadStats();
+                }
+            } catch (error) {
+                alert('Ошибка разблокировки');
             }
         }
         

@@ -27,7 +27,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/maket.css') }}">
     {% block head %}{% endblock %}
 </head>
-<body>
+<body {% if url_shortener_api %}data-shorten-api="{{ url_shortener_api }}"{% endif %}>
     {% block content %}{% endblock %}
     {% block scripts %}{% endblock %}
 </body>

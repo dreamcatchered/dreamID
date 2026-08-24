@@ -17,8 +17,10 @@ body {
     font-family: 'Inter', sans-serif;
     background-color: var(--bg);
     color: var(--text-main);
-    height: 100vh;
-    overflow: hidden; /* Might need to adjust if content overflows on small screens */
+    min-height: 100vh;
+    min-height: 100dvh;
+    overflow-x: hidden;
+    overflow-y: auto;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -26,17 +28,18 @@ body {
 
 /* Allow scrolling on mobile if content is tall */
 @media (max-height: 800px) {
-    body {
-        overflow-y: auto;
-        align-items: flex-start;
-    }
+    body { align-items: flex-start; }
 }
 
 /* --- LOGIN SCREEN --- */
 .login-wrapper {
     position: absolute;
-    width: 100%; height: 100%;
-    display: flex; align-items: center; justify-content: center;
+    inset: 0;
+    width: 100%; min-height: 100%;
+    display: flex; align-items: flex-start; justify-content: center;
+    padding: 24px 16px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     z-index: 10;
     background: #ffffff;
 }
@@ -46,6 +49,7 @@ body {
     padding: 40px;
     border-radius: 32px;
     width: 100%; max-width: 420px;
+    margin: auto;
     box-shadow: var(--shadow);
     border: 1px solid var(--border);
     text-align: center;
@@ -182,6 +186,11 @@ body {
     .app-card.wide { grid-column: span 1; }
     .login-card { box-shadow: none; border: none; background: transparent; padding: 20px; }
     .dashboard-wrapper { padding: 20px; }
+}
+
+@media(max-width: 380px) {
+    .login-wrapper { padding: 16px 10px; }
+    .login-card { padding: 12px; }
 }
 
 /* Alert styles */

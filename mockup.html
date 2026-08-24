@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>dreamID | Ecosystem</title>
+    
+    <!-- Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Icons: Phosphor -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+    <!-- Animation: GSAP -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+
+    <style>
+        :root {
+            --bg: #F4F4F5;
+            --surface: #FFFFFF;
+            --text-main: #09090B;
+            --text-muted: #71717A;
+            --border: #E4E4E7;
+            --primary: #18181B;
+            --radius: 24px;
+            --radius-sm: 12px;
+            --shadow: 0 10px 40px rgba(0,0,0,0.04);
+            --ease: cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg);
+            color: var(--text-main);
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* --- LOGIN SCREEN --- */
+        .login-wrapper {
+            position: absolute;
+            width: 100%; height: 100%;
+            display: flex; align-items: center; justify-content: center;
+            z-index: 10;
+            background: var(--bg);
+        }
+
+        .login-card {
+            background: var(--surface);
+            padding: 40px;
+            border-radius: 32px;
+            width: 100%; max-width: 420px;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border);
+            text-align: center;
+        }
+
+        .logo-badge {
+            width: 48px; height: 48px;
+            background: var(--primary); color: white;
+            border-radius: 16px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 24px; margin: 0 auto 16px;
+        }
+
+        .input-stack { margin: 24px 0; display: flex; flex-direction: column; gap: 12px; }
+        
+        .custom-input {
+            width: 100%; padding: 14px; border: 1px solid var(--border);
+            border-radius: var(--radius-sm); outline: none; background: var(--bg);
+            font-family: inherit;
+        }
+        
+        .btn-primary {
+            width: 100%; padding: 16px; background: var(--primary); color: white;
+            border: none; border-radius: var(--radius-sm); font-weight: 600; cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .btn-primary:hover { opacity: 0.9; }
+
+        /* Стили для разделителя и быстрой кнопки */
+        .divider {
+            margin: 24px 0; font-size: 12px; color: var(--text-muted); position: relative;
+        }
+        .divider::before, .divider::after {
+            content: ''; position: absolute; top: 50%; width: 40%; height: 1px; background: var(--border);
+        }
+        .divider::before { left: 0; } .divider::after { right: 0; }
+
+        .btn-fast-login {
+            width: 100%; padding: 14px;
+            background: transparent; border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            font-size: 14px; font-weight: 500; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            gap: 10px; transition: all 0.2s;
+            color: var(--text-main);
+            font-family: inherit;
+        }
+        .btn-fast-login:hover { background: #FAFAFA; border-color: #d4d4d8; }
+
+        /* --- DASHBOARD VIEW --- */
+        .dashboard-wrapper {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: #fff;
+            z-index: 1;
+            padding: 40px;
+            display: flex;
+            flex-direction: column;
+            visibility: hidden;
+            opacity: 0;
+            overflow-y: auto;
+        }
+
+        .dash-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 32px; max-width: 1200px; width: 100%;
+            margin-left: auto; margin-right: auto;
+        }
+
+        .user-profile {
+            display: flex; align-items: center; gap: 12px;
+            background: var(--bg); padding: 8px 16px 8px 8px;
+            border-radius: 30px; cursor: pointer;
+            border: 1px solid transparent; transition: border-color 0.2s;
+        }
+        .user-profile:hover { border-color: var(--border); }
+
+        .avatar {
+            width: 32px; height: 32px; background: #000; color: #fff;
+            border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px;
+        }
+
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: 20px;
+            max-width: 1200px; width: 100%; margin: 0 auto;
+            padding-bottom: 40px;
+        }
+
+        .app-card {
+            background: var(--bg);
+            border-radius: var(--radius);
+            padding: 24px;
+            height: 220px;
+            display: flex; flex-direction: column; justify-content: space-between;
+            text-decoration: none;
+            color: var(--text-main);
+            border: 1px solid transparent;
+            position: relative; overflow: hidden;
+            transition: transform 0.3s, box-shadow 0.3s, background-color 0.3s, border-color 0.3s;
+        }
+
+        .app-card:hover {
+            background: #fff; border-color: var(--border);
+            box-shadow: var(--shadow); transform: translateY(-4px);
+        }
+
+        .app-icon {
+            width: 52px; height: 52px; background: #fff; border-radius: 16px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 26px; color: var(--text-main);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+        }
+
+        .app-info h3 { font-size: 17px; font-weight: 600; margin-bottom: 6px; }
+        .app-info p { font-size: 13px; opacity: 0.6; line-height: 1.4; }
+
+        .app-card.wide {
+            grid-column: span 2;
+            background: linear-gradient(135deg, #18181B 0%, #27272A 100%);
+            color: white;
+        }
+        .app-card.wide .app-icon { background: rgba(255,255,255,0.1); color: white; box-shadow: none; }
+        .app-card.wide .app-info p { opacity: 0.7; }
+        .app-card.wide:hover { transform: translateY(-4px); box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+
+        @media(max-width: 600px) {
+            .app-card.wide { grid-column: span 1; }
+            .login-card { box-shadow: none; border: none; background: transparent; padding: 20px; }
+            .dashboard-wrapper { padding: 20px; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- === 1. ЭКРАН ВХОДА === -->
+    <div class="login-wrapper" id="loginView">
+        <div class="login-card">
+            <div class="logo-badge"><i class="ph ph-asterisk-simple"></i></div>
+            <h1 style="font-size: 24px; margin-bottom: 8px;">dreamID</h1>
+            <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 24px;">Вход в экосистему</p>
+
+            <form id="loginForm">
+                <div class="input-stack">
+                    <input type="text" class="custom-input" placeholder="Логин" value="alex.dream">
+                    <input type="password" class="custom-input" placeholder="Пароль" value="password">
+                </div>
+                
+                <button type="submit" class="btn-primary">Войти</button>
+
+                <!-- ВЕРНУЛСЯ РАЗДЕЛИТЕЛЬ -->
+                <div class="divider">или</div>
+
+                <!-- ВЕРНУЛАСЬ КНОПКА -->
+                <button type="button" class="btn-fast-login">
+                    <i class="ph ph-fingerprint" style="font-size: 20px;"></i>
+                    Быстрый вход через Telegram
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- === 2. ДАШБОРД (ЭКОСИСТЕМА) === -->
+    <div class="dashboard-wrapper" id="dashboardView">
+        <div class="dash-header">
+            <div>
+                <h2 style="font-size: 28px; font-weight: 600;">Добро пожаловать! 👋</h2>
+                <p style="color: var(--text-muted); font-size: 14px;">Все сервисы dreamPartners доступны.</p>
+            </div>
+            <div class="user-profile">
+                <div class="avatar">A</div>
+                <span style="font-size: 14px; font-weight: 500;">alex.dream</span>
+            </div>
+        </div>
+
+        <div class="grid-container">
+            
+            <!-- 1. dreamGPT AI (Главная карточка) -->
+            <a href="https://ai.dreampartners.online" target="_blank" class="app-card wide">
+                <div class="app-icon"><i class="ph ph-robot"></i></div>
+                <div class="app-info">
+                    <h3>dreamGPT AI</h3>
+                    <p>AI-платформа: GPT-4, работа с документами и памятью.</p>
+                </div>
+            </a>
+
+            <!-- 2. dreamPartners CPA -->
+            <a href="https://dreampartners.ru" target="_blank" class="app-card">
+                <div class="app-icon"><i class="ph ph-globe"></i></div>
+                <div class="app-info">
+                    <h3>dreamPartners</h3>
+                    <p>CPA Платформа</p>
+                </div>
+            </a>
+
+            <!-- 3. SwagPlayer -->
+            <a href="https://swag.dreampartners.online" target="_blank" class="app-card">
+                <div class="app-icon"><i class="ph ph-music-notes"></i></div>
+                <div class="app-info">
+                    <h3>SwagPlayer</h3>
+                    <p>Музыкальный сервис</p>
+                </div>
+            </a>
+
+            <!-- 4. dreamDownloader -->
+            <a href="https://download.dreampartners.online" target="_blank" class="app-card">
+                <div class="app-icon"><i class="ph ph-download-simple"></i></div>
+                <div class="app-info">
+                    <h3>dreamDownloader</h3>
+                    <p>Загрузчик медиа</p>
+                </div>
+            </a>
+
+            <!-- 5. dreamSMS -->
+            <a href="https://sms.dreampartners.online" target="_blank" class="app-card">
+                <div class="app-icon"><i class="ph ph-chat-text"></i></div>
+                <div class="app-info">
+                    <h3>dreamSMS</h3>
+                    <p>SMS API сервис</p>
+                </div>
+            </a>
+
+            <!-- 6. dream MP3Tag -->
+            <a href="https://mp3.dreampartners.online" target="_blank" class="app-card">
+                <div class="app-icon"><i class="ph ph-tag"></i></div>
+                <div class="app-info">
+                    <h3>dream MP3Tag</h3>
+                    <p>Аудио редактор</p>
+                </div>
+            </a>
+
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const tl = gsap.timeline();
+
+            // 1. Уход логина
+            tl.to('.login-card', {
+                duration: 0.5,
+                opacity: 0,
+                y: 30,
+                scale: 0.95,
+                filter: "blur(10px)",
+                ease: 'power2.in',
+                onComplete: () => {
+                    gsap.set('#loginView', { display: 'none' });
+                }
+            });
+
+            // 2. Включаем дашборд
+            tl.to('#dashboardView', {
+                duration: 0.2,
+                autoAlpha: 1
+            });
+
+            // 3. Анимация хедера
+            tl.fromTo('.dash-header', 
+                { y: -30, opacity: 0 },
+                { y: 0, opacity: 1, duration: 0.6, ease: 'power3.out' }
+            );
+
+            // 4. Анимация карточек
+            tl.fromTo('.app-card', 
+                { y: 60, opacity: 0 },
+                { 
+                    y: 0, 
+                    opacity: 1, 
+                    duration: 0.8, 
+                    stagger: 0.1, 
+                    ease: 'cubic-bezier(0.16, 1, 0.3, 1)',
+                    clearProps: 'transform'
+                },
+                "-=0.4"
+            );
+        });
+    </script>
+</body>
+</html>

@@ -13,6 +13,8 @@
         </div>
         {% endif %}
 
+        <div id="urlError" class="alert alert-error" style="display: none; margin-bottom: 20px;"></div>
+
         <div class="login-method-toggle" style="display: flex; gap: 4px; margin-bottom: 24px; background: #F4F4F5; padding: 4px; border-radius: 14px;">
             <button type="button" class="method-btn active" data-method="sms" style="flex: 1; border: none; padding: 10px; border-radius: 10px; font-weight: 500; cursor: pointer; background: #FFFFFF; color: #09090B; box-shadow: 0 2px 4px rgba(0,0,0,0.04); transition: all 0.2s;">По коду</button>
             <button type="button" class="method-btn" data-method="password" style="flex: 1; border: none; padding: 10px; border-radius: 10px; font-weight: 500; cursor: pointer; background: transparent; color: #71717A; transition: all 0.2s;">По паролю</button>
@@ -62,6 +64,29 @@
                     <input type="password" class="custom-input" id="password" placeholder="Пароль" autocomplete="current-password">
                 </div>
             </div>
+
+            <!-- QR CODE METHOD (inline) -->
+            <div id="qrMethod" class="method-section" style="display: none; opacity: 0; text-align: center;">
+                <div id="qrLoading" style="padding: 40px 0;">
+                    <div style="width: 40px; height: 40px; border: 3px solid #F4F4F5; border-top-color: #09090B; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 12px;"></div>
+                    <p style="color: var(--text-muted); font-size: 13px;">Генерация QR-кода...</p>
+                </div>
+                <div id="qrDisplay" style="display: none;">
+                    <p style="margin: 0 0 12px 0; font-size: 13px; color: var(--text-muted);">Отправьте QR-код боту <a href="https://t.me/dream_smsbot" target="_blank" style="color: #1877F2; font-weight: 500;">@dream_smsbot</a></p>
+                    <div id="qrCodeContainer" style="margin: 0 auto 12px; width: 180px; height: 180px; background: #fff; border-radius: 12px; padding: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);"></div>
+                    <p id="qrExpiry" style="margin: 0; font-size: 11px; color: #A1A1AA;"></p>
+                    <a href="#" onclick="refreshQrCode(); return false;" style="display: inline-block; margin-top: 10px; font-size: 12px; color: var(--text-muted); text-decoration: none;">Обновить</a>
+                </div>
+                <div id="qrSuccess" style="display: none; padding: 40px 0;">
+                    <div style="width: 56px; height: 56px; background: #22C55E; border-radius: 50%; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center;">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    </div>
+                    <p style="margin: 0; font-size: 15px; font-weight: 600; color: #09090B;">Вход выполнен!</p>
+                </div>
+                <div id="qrBackLink" style="margin-top: 16px;">
+                    <a href="#" onclick="showLoginMethods(); return false;" style="font-size: 13px; color: var(--text-muted); text-decoration: none;">← Другой способ входа</a>
+                </div>
+            </div>
             </div>
             
             <button type="submit" class="btn-primary" id="submitBtn" style="margin-top: 16px;">Отправить код</button>
@@ -73,6 +98,11 @@
             <button type="button" class="btn-fast-login" id="quickLoginBtn">
                 <i class="ph ph-fingerprint" style="font-size: 20px;"></i>
                 Быстрый вход через Telegram
+            </button>
+
+            <button type="button" class="btn-fast-login" id="qrLoginBtn" style="margin-top: 10px;">
+                <i class="ph ph-qr-code" style="font-size: 20px;"></i>
+                Вход по QR-коду
             </button>
             
             <div style="margin-top: 24px; font-size: 14px; color: var(--text-muted); padding-top: 16px; border-top: 1px solid var(--border);">
@@ -577,6 +607,199 @@
             }
         });
     }
+
+    // QR Code Login Logic (inline, no modal)
+    let currentQrToken = null;
+    let qrPollInterval = null;
+
+    function showLoginMethods() {
+        // Hide QR method, show SMS/Password methods
+        const qrMethod = document.getElementById('qrMethod');
+        const smsMethod = document.getElementById('smsMethod');
+        const passwordMethod = document.getElementById('passwordMethod');
+        const submitBtn = document.getElementById('submitBtn');
+        const toggle = document.querySelector('.login-method-toggle');
+        const divider = document.querySelector('.divider');
+        const quickBtn = document.getElementById('quickLoginBtn');
+        const qrBtn = document.getElementById('qrLoginBtn');
+
+        // Stop polling
+        if (qrPollInterval) { clearInterval(qrPollInterval); qrPollInterval = null; }
+
+        // Animate out QR
+        gsap.to(qrMethod, { opacity: 0, duration: 0.2, onComplete: () => {
+            qrMethod.style.display = 'none';
+            // Reset QR states
+            document.getElementById('qrLoading').style.display = 'block';
+            document.getElementById('qrDisplay').style.display = 'none';
+            document.getElementById('qrSuccess').style.display = 'none';
+
+            // Show current login method
+            const method = document.getElementById('loginForm').dataset.method;
+            if (method === 'sms') {
+                smsMethod.style.display = 'block';
+                smsMethod.style.opacity = 1;
+                submitBtn.textContent = 'Отправить код';
+            } else {
+                passwordMethod.style.display = 'block';
+                passwordMethod.style.opacity = 1;
+                submitBtn.textContent = 'Войти';
+            }
+            submitBtn.style.display = 'block';
+            toggle.style.display = 'flex';
+            divider.style.display = 'block';
+            quickBtn.style.display = 'flex';
+            qrBtn.style.display = 'flex';
+
+            gsap.from([smsMethod, passwordMethod], { opacity: 0, duration: 0.2 });
+        }});
+    }
+
+    async function generateQrLogin() {
+        const wrapper = document.getElementById('formContentWrapper');
+        const smsMethod = document.getElementById('smsMethod');
+        const passwordMethod = document.getElementById('passwordMethod');
+        const qrMethod = document.getElementById('qrMethod');
+        const submitBtn = document.getElementById('submitBtn');
+        const toggle = document.querySelector('.login-method-toggle');
+        const divider = document.querySelector('.divider');
+        const quickBtn = document.getElementById('quickLoginBtn');
+        const qrBtn = document.getElementById('qrLoginBtn');
+
+        // Show loading
+        document.getElementById('qrLoading').style.display = 'block';
+        document.getElementById('qrDisplay').style.display = 'none';
+        document.getElementById('qrSuccess').style.display = 'none';
+
+        // Hide current methods, show QR
+        const currentMethod = document.getElementById('loginForm').dataset.method === 'sms' ? smsMethod : passwordMethod;
+        const startHeight = wrapper.offsetHeight;
+        wrapper.style.height = startHeight + 'px';
+
+        gsap.to([currentMethod, submitBtn, toggle, divider, quickBtn, qrBtn], {
+            opacity: 0, duration: 0.2, onComplete: () => {
+                currentMethod.style.display = 'none';
+                submitBtn.style.display = 'none';
+                toggle.style.display = 'none';
+                divider.style.display = 'none';
+                quickBtn.style.display = 'none';
+                qrBtn.style.display = 'none';
+
+                qrMethod.style.display = 'block';
+                qrMethod.style.opacity = 0;
+
+                const targetHeight = qrMethod.scrollHeight;
+                gsap.to(wrapper, { height: targetHeight, duration: 0.3, ease: 'power2.out', onComplete: () => { wrapper.style.height = 'auto'; } });
+                gsap.to(qrMethod, { opacity: 1, duration: 0.3 });
+            }
+        });
+
+        try {
+            const urlParams = new URLSearchParams(window.location.search);
+            const response = await fetch('/api/quick-login/generate', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    redirect_uri: urlParams.get('redirect_uri') || '',
+                    client_id: urlParams.get('client_id') || '',
+                    state: urlParams.get('state') || ''
+                })
+            });
+            const data = await response.json();
+            if (data.success && data.token) {
+                currentQrToken = data.token;
+                // Build bot link with token
+                const botLink = `https://t.me/dream_smsbot?start=qr_${data.token}`;
+                // Shorten via configured URL shortener (optional)
+                try {
+                    const shortenApi = document.body.dataset.shortenApi;
+                    if (shortenApi) {
+                        const shortResp = await fetch(shortenApi, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ url: botLink })
+                        });
+                        const shortData = await shortResp.json();
+                        const shortUrl = shortData.url || botLink;
+                        // Generate QR from shortened URL
+                        const qrImg = document.createElement('img');
+                        qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(shortUrl)}`;
+                        qrImg.style.width = '180px';
+                        qrImg.style.height = '180px';
+                        qrImg.style.borderRadius = '8px';
+                        const container = document.getElementById('qrCodeContainer');
+                        container.innerHTML = '';
+                        container.appendChild(qrImg);
+                    }
+                } catch (e) {
+                    // Fallback: direct QR
+                    const qrImg = document.createElement('img');
+                    qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(botLink)}`;
+                    qrImg.style.width = '180px';
+                    qrImg.style.height = '180px';
+                    qrImg.style.borderRadius = '8px';
+                    const container = document.getElementById('qrCodeContainer');
+                    container.innerHTML = '';
+                    container.appendChild(qrImg);
+                }
+
+                document.getElementById('qrLoading').style.display = 'none';
+                document.getElementById('qrDisplay').style.display = 'block';
+                startQrPolling(data.token);
+            } else {
+                showAlert('❌ ' + (data.error || 'Ошибка генерации'), 'error');
+                showLoginMethods();
+            }
+        } catch (error) {
+            showAlert('❌ Ошибка соединения', 'error');
+            showLoginMethods();
+        }
+    }
+
+    function refreshQrCode() {
+        if (currentQrToken) {
+            const botLink = `https://t.me/dream_smsbot?start=qr_${currentQrToken}`;
+            const qrImg = document.createElement('img');
+            qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(botLink)}`;
+            qrImg.style.width = '180px';
+            qrImg.style.height = '180px';
+            qrImg.style.borderRadius = '8px';
+            const container = document.getElementById('qrCodeContainer');
+            container.innerHTML = '';
+            container.appendChild(qrImg);
+        }
+    }
+
+    function startQrPolling(token) {
+        if (qrPollInterval) clearInterval(qrPollInterval);
+        let attempts = 0;
+        const maxAttempts = 60; // 5 минут
+
+        qrPollInterval = setInterval(async () => {
+            attempts++;
+            if (attempts >= maxAttempts) {
+                clearInterval(qrPollInterval);
+                document.getElementById('qrExpiry').textContent = 'QR-код истёк.';
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/quick-login/check/${token}`);
+                const data = await response.json();
+                if (data.success && data.auth_url) {
+                    clearInterval(qrPollInterval);
+                    // Show success animation
+                    document.getElementById('qrDisplay').style.display = 'none';
+                    document.getElementById('qrSuccess').style.display = 'block';
+                    document.getElementById('qrBackLink').style.display = 'none';
+                    // Redirect after animation
+                    setTimeout(() => { window.location.href = data.auth_url; }, 1500);
+                }
+            } catch (e) {}
+        }, 5000);
+    }
+
+    document.getElementById('qrLoginBtn').addEventListener('click', generateQrLogin);
 </script>
 <style>
 @keyframes spin { 100% { transform: rotate(360deg); } }

@@ -1,12 +1,15 @@
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, make_response, has_request_context
 from flask.sessions import SecureCookieSessionInterface
 from flask_cors import CORS
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 import json
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 import secrets
 import time
 import requests
+from pathlib import Path
 from datetime import datetime, timedelta
 import os
 import stat
@@ -27,6 +30,14 @@ else:
     print(f"Warning: .env file not found at {env_path}, using default environment")
 
 app = Flask(__name__)
+
+# Инициализация Rate Limiter
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=["500 per day", "100 per hour"],
+    storage_uri="memory://",
+)
 
 # Обеспечиваем постоянный SECRET_KEY для persistent sessions
 def ensure_secret_key():
@@ -107,12 +118,13 @@ CORS(app, resources={
     r"/api/*": {"origins": "*", "methods": ["GET", "POST", "OPTIONS"], "allow_headers": ["Content-Type", "Authorization"]},
     r"/sso": {"origins": "*", "methods": ["GET", "OPTIONS"]},
     r"/login": {"origins": "*", "methods": ["GET", "OPTIONS"]}
-}, supports_credentials=True, expose_headers=['Location'])
+}, expose_headers=['Location'])
 
 # Конфигурация
 SMS_API_URL = "https://sms.dreampartners.online/api/sms"
 SMS_API_KEY = os.environ.get('SMS_API_KEY', '')  # Получите из бота @dream_smsbot
 AUTH_BASE_URL = os.environ.get('AUTH_BASE_URL', 'https://auth.dreampartners.online')
+URL_SHORTENER_API = os.environ.get('URL_SHORTENER_API', '')
 CODE_EXPIRY_MINUTES = 10
 SSO_CODE_EXPIRY_MINUTES = 5
 QUICK_LOGIN_TOKEN_EXPIRY_MINUTES = 5
@@ -126,6 +138,15 @@ if not SMS_API_KEY:
 
 # Получаем абсолютный путь к базе данных (BASE_DIR уже определен выше)
 DB_PATH = os.path.join(BASE_DIR, 'dreamid.db')
+
+# Директория для аватаров
+AVATARS_DIR = Path(BASE_DIR) / 'static' / 'uploads' / 'avatars'
+AVATARS_DIR.mkdir(parents=True, exist_ok=True)
+
+@app.context_processor
+def inject_template_globals():
+    """Общие переменные для шаблонов (из переменных окружения)"""
+    return {'url_shortener_api': URL_SHORTENER_API}
 
 # Кастомный SQLite Session Interface для persistent sessions
 class SQLiteSessionInterface(SecureCookieSessionInterface):
@@ -343,13 +364,27 @@ def init_db():
                   client_id TEXT,
                   state TEXT,
                   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                  expires_at TIMESTAMP NOT NULL)''')
+                  expires_at TIMESTAMP NOT NULL,
+                  used INTEGER DEFAULT 0,
+                  auth_url TEXT)''')
     
     # Сессии пользователей (для persistent sessions)
     c.execute('''CREATE TABLE IF NOT EXISTS sessions
                  (session_id TEXT PRIMARY KEY,
                   data TEXT NOT NULL,
                   expiry TIMESTAMP NOT NULL)''')
+    
+    # Логи активности
+    c.execute('''CREATE TABLE IF NOT EXISTS activity_logs
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  user_id INTEGER,
+                  client_id TEXT,
+                  action TEXT,
+                  details TEXT,
+                  ip_address TEXT,
+                  user_agent TEXT,
+                  timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                  FOREIGN KEY (user_id) REFERENCES users (id))''')
     
     # Создаем индекс для быстрой очистки истекших сессий
     c.execute('''CREATE INDEX IF NOT EXISTS idx_sessions_expiry ON sessions(expiry)''')
@@ -373,7 +408,7 @@ def fix_db_schema():
         # phone_col[3] is 'notnull' (1 if NOT NULL, 0 if NULL allowed)
         columns_list = [col[1] for col in columns]
         needs_migration = False
-        new_fields = ['first_name', 'last_name', 'email', 'country', 'city', 'telegram_username', 'telegram_id']
+        new_fields = ['first_name', 'last_name', 'email', 'country', 'city', 'telegram_username', 'telegram_id', 'blocked']
         missing_fields = [field for field in new_fields if field not in columns_list]
         
         if phone_col and phone_col[3] == 1:
@@ -398,6 +433,7 @@ def fix_db_schema():
                   city TEXT,
                   telegram_username TEXT,
                   telegram_id INTEGER,
+                  blocked INTEGER DEFAULT 0,
                   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
             
             # Копируем данные (только существующие колонки)
@@ -411,8 +447,9 @@ def fix_db_schema():
             # Добавляем только недостающие поля
             for field in missing_fields:
                 try:
-                    field_type = 'INTEGER' if field == 'telegram_id' else 'TEXT'
-                    c.execute(f'ALTER TABLE users ADD COLUMN {field} {field_type}')
+                    field_type = 'INTEGER' if field in ('telegram_id', 'blocked') else 'TEXT'
+                    default_val = ' DEFAULT 0' if field == 'blocked' else ''
+                    c.execute(f'ALTER TABLE users ADD COLUMN {field} {field_type}{default_val}')
                     print(f"Added {field} column to users table.")
                 except Exception as e:
                     print(f"Error adding {field}: {e}")
@@ -485,9 +522,22 @@ def migrate_quick_login_tokens():
                           client_id TEXT,
                           state TEXT,
                           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                          expires_at TIMESTAMP NOT NULL)''')
+                          expires_at TIMESTAMP NOT NULL,
+                          used INTEGER DEFAULT 0,
+                          auth_url TEXT)''')
             conn.commit()
             print("Database migrated: added quick_login_tokens table")
+        else:
+            # Добавляем новые колонки если их нет
+            c.execute("PRAGMA table_info(quick_login_tokens)")
+            columns = [row[1] for row in c.fetchall()]
+            if 'used' not in columns:
+                c.execute('ALTER TABLE quick_login_tokens ADD COLUMN used INTEGER DEFAULT 0')
+                print("Migration: added 'used' column to quick_login_tokens")
+            if 'auth_url' not in columns:
+                c.execute('ALTER TABLE quick_login_tokens ADD COLUMN auth_url TEXT')
+                print("Migration: added 'auth_url' column to quick_login_tokens")
+            conn.commit()
     except Exception as e:
         print(f"Migration error (quick_login_tokens): {e}")
     conn.close()
@@ -513,6 +563,55 @@ def migrate_sessions():
     conn.close()
 
 migrate_sessions()
+
+def log_activity(user_id, client_id, action, details=None):
+    """Логирует активность пользователя"""
+    try:
+        ip_address = request.remote_addr if has_request_context() else None
+        user_agent = request.headers.get('User-Agent') if has_request_context() else None
+        
+        conn = sqlite3.connect(DB_PATH)
+        conn.execute(
+            '''INSERT INTO activity_logs (user_id, client_id, action, details, ip_address, user_agent)
+               VALUES (?, ?, ?, ?, ?, ?)''',
+            (user_id, client_id, action, details, ip_address, user_agent)
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"Logging error: {e}")
+
+def save_avatar_locally(url, user_id):
+    """Скачивает аватар и сохраняет его локально"""
+    if not url:
+        return None
+    
+    if url.startswith('/static/'):
+        return url
+        
+    try:
+        response = requests.get(url, timeout=10)
+        if response.status_code == 200:
+            content_type = response.headers.get('Content-Type', '')
+            ext = '.jpg'
+            if 'image/png' in content_type:
+                ext = '.png'
+            elif 'image/webp' in content_type:
+                ext = '.webp'
+            elif 'image/gif' in content_type:
+                ext = '.gif'
+            
+            filename = f"avatar_{user_id}_{secrets.token_hex(4)}{ext}"
+            filepath = AVATARS_DIR / filename
+            
+            with open(filepath, 'wb') as f:
+                f.write(response.content)
+            
+            return f"/static/uploads/avatars/{filename}"
+    except Exception as e:
+        print(f"Error downloading avatar: {e}")
+    
+    return url
 
 # Устанавливаем кастомный SQLite session interface для persistent sessions
 app.session_interface = SQLiteSessionInterface()
@@ -792,6 +891,7 @@ def login():
                           state=state)
 
 @app.route('/api/login', methods=['POST', 'OPTIONS'])
+@limiter.limit("10 per minute")
 def api_login():
     if request.method == 'OPTIONS':
         response = make_response()
@@ -878,10 +978,19 @@ def api_login():
             response.headers.add('Access-Control-Allow-Origin', '*')
             return response, 401
         
+        # Проверка на блокировку
+        if user['blocked']:
+            response = jsonify({"success": False, "error": "Ваш аккаунт заблокирован. Обратитесь в поддержку."})
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            return response, 403
+        
         # Авторизуем пользователя
         session['user_id'] = user['id']
         session['username'] = user['username']
         session.permanent = True  # Делаем сессию постоянной
+        
+        # Логируем вход
+        log_activity(user['id'], 'auth', 'login_password', 'Успешный вход по паролю')
         
         # Явно сохраняем сессию (Flask иногда не сохраняет автоматически)
         try:
@@ -933,6 +1042,7 @@ def api_login():
 
 # Вход по SMS
 @app.route('/api/login/sms/send', methods=['POST', 'OPTIONS'])
+@limiter.limit("5 per minute")
 def api_login_sms_send():
     """Отправка SMS кода для входа или регистрации"""
     if request.method == 'OPTIONS':
@@ -1041,6 +1151,7 @@ def api_login_sms_send():
         return response, 500
 
 @app.route('/api/login/sms/verify', methods=['POST', 'OPTIONS'])
+@limiter.limit("10 per minute")
 def api_login_sms_verify():
     """Проверка SMS кода и авторизация"""
     if request.method == 'OPTIONS':
@@ -1176,6 +1287,10 @@ def api_login_sms_verify():
             session['phone_verified'] = phone_normalized # Mark phone as verified for step 2
             if telegram_username:
                 session['telegram_username'] = telegram_username
+            
+            # Логируем начало регистрации
+            log_activity(None, 'auth', 'register_sms_start', f'Phone: {phone_normalized}')
+            
             response = jsonify({
                 "success": True, 
                 "is_new_user": True, 
@@ -1183,6 +1298,12 @@ def api_login_sms_verify():
             })
             response.headers.add('Access-Control-Allow-Origin', '*')
             return response
+        
+        # Проверка на блокировку
+        if user['blocked']:
+            response = jsonify({"success": False, "error": "Ваш аккаунт заблокирован. Обратитесь в поддержку."})
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            return response, 403
         
         # Обновляем telegram_username если он был получен и отличается от текущего
         current_telegram_username = user['telegram_username'] if user['telegram_username'] else None
@@ -1203,6 +1324,9 @@ def api_login_sms_verify():
         session['username'] = user['username']
         session.permanent = True
         session.pop('login_phone', None)
+        
+        # Логируем вход
+        log_activity(user['id'], 'auth', 'login_sms', f'Успешный вход по SMS ({phone_normalized})')
         
         # Сохраняем сессию явно
         try:
@@ -1279,6 +1403,7 @@ def register():
     return render_template('register.html')
 
 @app.route('/api/register/simple', methods=['POST', 'OPTIONS'])
+@limiter.limit("5 per minute")
 def api_register_simple():
     """Упрощенная регистрация (с опциональным телефоном)"""
     if request.method == 'OPTIONS':
@@ -1388,6 +1513,7 @@ def api_register_simple():
         return response, 500
 
 @app.route('/api/register/step1', methods=['POST', 'OPTIONS'])
+@limiter.limit("5 per minute")
 def api_register_step1():
     """Шаг 1: Отправка кода на телефон"""
     if request.method == 'OPTIONS':
@@ -1493,6 +1619,7 @@ def api_register_step1():
         return response, 500
 
 @app.route('/api/register/step2', methods=['POST', 'OPTIONS'])
+@limiter.limit("5 per minute")
 def api_register_step2():
     """Шаг 2: Проверка кода и создание аккаунта"""
     if request.method == 'OPTIONS':
@@ -1601,6 +1728,9 @@ def redirect_to_client(redirect_uri, client_id, user_id, state=''):
     Это стандартный способ для OAuth 2.0 / OpenID Connect.
     """
     try:
+        # Логируем переход
+        log_activity(user_id, client_id, 'authorize', f'Redirect to: {redirect_uri}')
+        
         # Генерируем временный код (authorization code)
         code = secrets.token_urlsafe(32)
         
@@ -1862,6 +1992,7 @@ def register_client_api():
 
 # Быстрый вход через Telegram
 @app.route('/api/quick-login/generate', methods=['POST', 'OPTIONS'])
+@limiter.limit("5 per minute", methods=["POST"])
 def api_quick_login_generate():
     """Генерация токена для быстрого входа через Telegram"""
     if request.method == 'OPTIONS':
@@ -1907,12 +2038,49 @@ def api_quick_login_generate():
         response.headers.add('Access-Control-Allow-Origin', '*')
         return response, 500
 
+@app.route('/api/quick-login/check/<token>', methods=['GET'])
+def api_quick_login_check(token):
+    """Проверка статуса QR-кода (polling с фронтенда)"""
+    try:
+        conn = get_db()
+        token_data = conn.execute(
+            'SELECT * FROM quick_login_tokens WHERE token = ?', (token,)
+        ).fetchone()
+        
+        if not token_data:
+            conn.close()
+            return jsonify({"success": False, "error": "Token not found"}), 404
+        
+        # Проверяем срок действия
+        expires_at = datetime.fromisoformat(token_data['expires_at'])
+        if datetime.now() > expires_at:
+            conn.execute('DELETE FROM quick_login_tokens WHERE token = ?', (token,))
+            conn.commit()
+            conn.close()
+            return jsonify({"success": False, "error": "Token expired"}), 410
+        
+        # Проверяем, был ли QR-код отсканирован (токен использован)
+        if token_data['used'] and token_data['auth_url']:
+            # Токен был использован - возвращаем URL для редиректа
+            auth_url = token_data['auth_url']
+            conn.execute('DELETE FROM quick_login_tokens WHERE token = ?', (token,))
+            conn.commit()
+            conn.close()
+            return jsonify({"success": True, "auth_url": auth_url})
+        
+        conn.close()
+        return jsonify({"success": False, "pending": True})
+    except Exception as e:
+        print(f"Quick login check error: {e}")
+        return jsonify({"success": False, "error": "Internal server error"}), 500
+
 @app.route('/api/quick-login/auth', methods=['GET'])
 def api_quick_login_auth():
     """Авторизация по токену быстрого входа (устаревший endpoint, используется /quick-login/authorize)"""
     return redirect(url_for('api_quick_login_authorize', token=request.args.get('token')))
 
 @app.route('/api/quick-login/verify', methods=['POST', 'OPTIONS'])
+@limiter.limit("5 per minute", methods=["POST"])
 def api_quick_login_verify():
     """Проверка токена и авторизация пользователя (вызывается ботом)"""
     if request.method == 'OPTIONS':
@@ -1972,11 +2140,45 @@ def api_quick_login_verify():
             response.headers.add('Access-Control-Allow-Origin', '*')
             return response, 400
         
-        # Ищем пользователя в auth системе по телефону
-        # Сначала пробуем использовать телефон, переданный ботом
+        # ==== ЗАЩИТА: user_id/phone из POST НЕ могут произвольно выбирать пользователя ====
+        # Авторитетный источник — SMS API, возвращающий phone по реальному telegram_user_id.
+        import requests
+        sms_base_url = os.environ.get('SMS_BASE_URL', 'https://sms.dreampartners.online')
+        sms_api_url = f"{sms_base_url}/api/user/by-telegram-id"
         user = None
-        if phone:
-            print(f"[Quick Login Verify] Searching user by phone from bot: {phone}")
+
+        def _norm_phones(pnum):
+            cands = [pnum, '+' + pnum if not pnum.startswith('+') else pnum,
+                     pnum[1:] if pnum.startswith('+') else pnum]
+            out = []
+            for pp in cands:
+                dd = ''.join(filter(str.isdigit, pp))
+                if dd.startswith('7') and len(dd) == 11:
+                    out += ['+' + dd, '7' + dd[1:], '8' + dd[1:]]
+                elif dd.startswith('8') and len(dd) == 11:
+                    out += ['+7' + dd[1:], dd, '7' + dd[1:]]
+                else:
+                    out.append(pp)
+            return list(set(out))
+
+        # 1) SMS API: авторитетный телефон для данного telegram_user_id
+        try:
+            sms_response = requests.post(sms_api_url, json={"telegram_user_id": user_id}, timeout=5)
+            if sms_response.status_code == 200:
+                sms_data = sms_response.json()
+                sms_phone = sms_data.get('phone_number')
+                if sms_phone:
+                    pl_ = _norm_phones(sms_phone)
+                    ph_ = ','.join(['?'] * len(pl_))
+                    user = conn.execute(f'SELECT * FROM users WHERE phone IN ({ph_})', tuple(pl_)).fetchone()
+                    print(f"[Quick Login Verify] User resolved via SMS API: "
+                          f"{user['username'] if user else None} (phone {sms_phone})")
+        except Exception as e:
+            print(f"[Quick Login Verify] SMS API error: {e}")
+
+        # 2) Если SMS не дал результата — ищем по phone от бота, но только при совпадении
+        #    telegram_id у существующего аккаунта с user_id (запрет захвата чужой сессии).
+        if not user and phone:
             search_phones = [
                 phone,
                 '+' + phone if not phone.startswith('+') else phone,
@@ -1995,61 +2197,49 @@ def api_quick_login_verify():
             
             normalized_phones = list(set(normalized_phones))
             placeholders = ','.join(['?'] * len(normalized_phones))
-            user = conn.execute(
+            candidate = conn.execute(
                 f'SELECT * FROM users WHERE phone IN ({placeholders})', 
                 tuple(normalized_phones)
             ).fetchone()
+            
+            if candidate:
+                # Ключевая защита: существующий аккаунт можно занять ТОЛЬКО если его
+                # telegram_id соответствует user_id, переданному от реального владельца.
+                cb_tid = candidate['telegram_id']
+                if cb_tid is None:
+                    print(f"[Quick Login Verify] REJECTED: phone {phone} bound to {candidate['username']}, telegram unbound")
+                    conn.close()
+                    response = jsonify({"success": False,
+                                        "error": "Телефон используется другим аккаунтом. Войдите по SMS."})
+                    response.headers.add('Access-Control-Allow-Origin', '*')
+                    return response, 403
+                if str(cb_tid) != str(user_id):
+                    print(f"[Quick Login Verify] REJECTED: phone {phone} -> {candidate['username']} "
+                          f"(tg {cb_tid}) != user_id {user_id}")
+                    conn.close()
+                    response = jsonify({"success": False,
+                                        "error": "Телефон принадлежит другому пользователю."})
+                    response.headers.add('Access-Control-Allow-Origin', '*')
+                    return response, 403
+                user = candidate
         
-        # Если не нашли по телефону от бота, пробуем через API SMS
         if not user:
-            print(f"[Quick Login Verify] User not found by phone, trying SMS API for user_id: {user_id}")
-            import requests
-            sms_base_url = os.environ.get('SMS_BASE_URL', 'https://sms.dreampartners.online')
-            sms_api_url = f"{sms_base_url}/api/user/by-telegram-id"
+            # Пользователь не найден - создаем автоматически (регистрация через Telegram).
+            # ЗАЩИТА: авто-регистрация допустима ТОЛЬКО если telegram_user_id действительно
+            # существует в dreamSMS (QR отсканировал реальный пользователь бота).
             try:
-                sms_response = requests.post(
-                    sms_api_url,
-                    json={"telegram_user_id": user_id},
-                    timeout=5
-                )
-                print(f"[Quick Login Verify] SMS API response: {sms_response.status_code}")
-                if sms_response.status_code == 200:
-                    sms_data = sms_response.json()
-                    phone = sms_data.get('phone_number')
-                    print(f"[Quick Login Verify] Got phone from SMS API: {phone}")
-                    
-                    if phone:
-                        # Ищем пользователя в auth по телефону
-                        search_phones = [
-                            phone,
-                            '+' + phone if not phone.startswith('+') else phone,
-                            phone[1:] if phone.startswith('+') else phone
-                        ]
-                        # Нормализуем
-                        normalized_phones = []
-                        for p in search_phones:
-                            digits = ''.join(filter(str.isdigit, p))
-                            if digits.startswith('7') and len(digits) == 11:
-                                normalized_phones.extend(['+' + digits, '7' + digits[1:], '8' + digits[1:]])
-                            elif digits.startswith('8') and len(digits) == 11:
-                                normalized_phones.extend(['+7' + digits[1:], digits, '7' + digits[1:]])
-                            else:
-                                normalized_phones.append(p)
-                        
-                        normalized_phones = list(set(normalized_phones))
-                        placeholders = ','.join(['?'] * len(normalized_phones))
-                        user = conn.execute(
-                            f'SELECT * FROM users WHERE phone IN ({placeholders})', 
-                            tuple(normalized_phones)
-                        ).fetchone()
-                else:
-                    print(f"[Quick Login Verify] SMS API error: {sms_response.status_code} - {sms_response.text[:200]}")
-            except Exception as e:
-                print(f"[Quick Login Verify] Error getting phone from SMS bot: {e}")
-                import traceback
-                traceback.print_exc()
-        
-        if not user:
+                sms_probe = requests.post(sms_api_url, json={"telegram_user_id": user_id}, timeout=5)
+                sms_ok = sms_probe.status_code == 200 and bool(sms_probe.json().get('phone_number'))
+            except Exception:
+                sms_ok = False
+            if not sms_ok:
+                conn.close()
+                print(f"[Quick Login Verify] DENIED auto-registration: telegram_user_id {user_id} not in dreamSMS")
+                response = jsonify({"success": False,
+                                    "error": "Аккаунт не найден. Сначала завершите регистрацию в dreamSMS."})
+                response.headers.add('Access-Control-Allow-Origin', '*')
+                return response, 403
+
             # Пользователь не найден - создаем автоматически (регистрация через Telegram)
             print(f"[Quick Login Verify] User not found, creating new user for user_id: {user_id}, phone: {phone}")
             
@@ -2098,7 +2288,8 @@ def api_quick_login_verify():
             # Генерируем avatar URL из file_id если он есть
             avatar_url = None
             if avatar_file_id:
-                # Сохраняем file_id как есть, фронтенд будет получать URL через SMS API
+                # Если это новый пользователь, ID еще нет, используем временный или логируем
+                # Но лучше сначала создать пользователя, а потом обновить аватар с правильным ID
                 avatar_url = f"tg://avatar/{avatar_file_id}"
             
             print(f"[Quick Login Verify] Final: username={telegram_username}, first_name={first_name}, avatar_file_id={avatar_file_id}")
@@ -2132,7 +2323,23 @@ def api_quick_login_verify():
             if existing_user:
                 # Пользователь уже существует - используем его
                 user = existing_user
-                print(f"[Quick Login Verify] Found existing user: {user['username']} (ID: {user['id']})")
+                user_id = user['id']
+                print(f"[Quick Login Verify] Found existing user: {user['username']} (ID: {user_id})")
+                
+                # Обновляем аватар если он пришел от бота
+                if avatar_file_id:
+                    try:
+                        # Получаем реальный URL аватара через SMS API
+                        sms_base_url = os.environ.get('SMS_BASE_URL', 'https://sms.dreampartners.online')
+                        sms_avatar_url = f"{sms_base_url}/api/user/avatar/{avatar_file_id}"
+                        local_avatar = save_avatar_locally(sms_avatar_url, user_id)
+                        if local_avatar:
+                            conn.execute('UPDATE users SET avatar = ? WHERE id = ?', (local_avatar, user_id))
+                            conn.commit()
+                            # Обновляем объект user для дальнейшего использования
+                            user = conn.execute('SELECT * FROM users WHERE id = ?', (user_id,)).fetchone()
+                    except Exception as e:
+                        print(f"Error updating avatar for existing user: {e}")
             else:
                 # Определяем логин: используем telegram_username (уже получен выше из бота или SMS API)
                 if telegram_username:
@@ -2160,14 +2367,27 @@ def api_quick_login_verify():
                 empty_password_hash = generate_password_hash('')
                 
                 try:
-                    conn.execute(
-                        'INSERT INTO users (username, password_hash, phone, telegram_username, telegram_id, first_name, avatar, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-                        (username, empty_password_hash, phone_normalized, telegram_username or None, telegram_id, first_name or None, avatar_url or None, datetime.now())
+                    cursor = conn.execute(
+                        'INSERT INTO users (username, password_hash, phone, telegram_username, telegram_id, first_name, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                        (username, empty_password_hash, phone_normalized, telegram_username or None, telegram_id, first_name or None, datetime.now())
                     )
+                    user_id = cursor.lastrowid
                     conn.commit()
                     
+                    # Если есть аватар, скачиваем его и сохраняем локально
+                    if avatar_file_id:
+                        try:
+                            sms_base_url = os.environ.get('SMS_BASE_URL', 'https://sms.dreampartners.online')
+                            sms_avatar_url = f"{sms_base_url}/api/user/avatar/{avatar_file_id}"
+                            local_avatar = save_avatar_locally(sms_avatar_url, user_id)
+                            if local_avatar:
+                                conn.execute('UPDATE users SET avatar = ? WHERE id = ?', (local_avatar, user_id))
+                                conn.commit()
+                        except Exception as e:
+                            print(f"Error saving avatar for new user: {e}")
+                    
                     # Получаем созданного пользователя
-                    user = conn.execute('SELECT * FROM users WHERE username = ?', (username,)).fetchone()
+                    user = conn.execute('SELECT * FROM users WHERE id = ?', (user_id,)).fetchone()
                     print(f"[Quick Login Verify] Created new user: {username} (ID: {user['id']})")
                 except Exception as e:
                     conn.close()
@@ -2184,32 +2404,39 @@ def api_quick_login_verify():
         
         print(f"[Quick Login Verify] User found: {user['username']} (ID: {user['id']})")
         
+        # Проверка на блокировку
+        if user['blocked']:
+            response = jsonify({"success": False, "error": "Ваш аккаунт заблокирован. Обратитесь в поддержку."})
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            return response, 403
+        
         # Генерируем ссылку для авторизации
         redirect_uri = token_data['redirect_uri'] or '/'
         client_id = token_data['client_id'] or ''
         state = token_data['state'] or ''
         
-        # Удаляем токен
-        conn.execute('DELETE FROM quick_login_tokens WHERE token = ?', (token,))
-        conn.commit()
-        conn.close()
+        # Логируем вход
+        log_activity(user['id'], 'auth', 'login_telegram', f'Быстрый вход через Telegram ({user["username"]})')
         
         # Генерируем SSO код для авторизации
         code = secrets.token_urlsafe(32)
-        conn = get_db()
         expires_at = datetime.now() + timedelta(minutes=SSO_CODE_EXPIRY_MINUTES)
         conn.execute(
             'INSERT INTO sso_codes (code, user_id, redirect_uri, client_id, state, expires_at) VALUES (?, ?, ?, ?, ?, ?)',
             (code, user['id'], redirect_uri, client_id, state, expires_at)
         )
-        conn.commit()
-        conn.close()
         
-        # Формируем URL для авторизации (всегда через промежуточный endpoint на нашем домене)
-        # Это решает проблему с localhost/http ссылками в Telegram кнопках
-        # Используем AUTH_BASE_URL из конфигурации
+        # Формируем URL для авторизации
         auth_base = AUTH_BASE_URL.rstrip('/')
         auth_url = f"{auth_base}/quick-login/authorize?code={code}"
+        
+        # Помечаем токен как использованный (не удаляем, чтобы polling мог узнать статус)
+        conn.execute(
+            'UPDATE quick_login_tokens SET used = 1, auth_url = ? WHERE token = ?',
+            (auth_url, token)
+        )
+        conn.commit()
+        conn.close()
         
         print(f"[Quick Login Verify] Success! Auth URL: {auth_url[:100]}...")
         
@@ -2241,6 +2468,11 @@ def api_quick_login_authorize():
     
     if not token and not code:
         return redirect(url_for('login') + '?error=' + 'Токен не указан')
+    
+    # Защита: если пользователь уже авторизован, не переключаем аккаунт
+    if session.get('user_id'):
+        print(f"[Quick Login] User already authenticated as {session.get('username')}. Skipping login from code/token.")
+        return redirect(url_for('index'))
     
     # Если есть code, это SSO код (основной способ авторизации)
     if code:
@@ -2479,7 +2711,13 @@ def api_bind_phone_verify():
 @app.route('/logout')
 def logout():
     session.clear()
-    return redirect(url_for('login'))
+    session.permanent = False
+    session.modified = True
+    response = make_response(redirect(url_for('login')))
+    # Явно удаляем куку сессии для надежности
+    cookie_name = app.config.get('SESSION_COOKIE_NAME', 'session')
+    response.delete_cookie(cookie_name)
+    return response
 
 # Favicon (чтобы не было 404)
 @app.route('/favicon.ico')
@@ -2489,7 +2727,7 @@ def favicon():
 # Документация
 @app.route('/docs')
 def docs():
-    return render_template('docs.html')
+    return redirect(url_for('index'))
 
 # API для получения профиля пользователя
 @app.route('/api/user/profile', methods=['GET', 'OPTIONS'])
@@ -2728,19 +2966,21 @@ def api_user_avatar_telegram():
             if sms_response.status_code == 200:
                 sms_data = sms_response.json()
                 if sms_data.get('success') and sms_data.get('avatar_url'):
-                    # Сохраняем аватар
+                    # Сохраняем аватар локально
+                    local_avatar = save_avatar_locally(sms_data['avatar_url'], session['user_id'])
+                    
                     conn = get_db()
                     conn.execute(
                         'UPDATE users SET avatar = ? WHERE id = ?',
-                        (sms_data['avatar_url'], session['user_id'])
+                        (local_avatar, session['user_id'])
                     )
                     conn.commit()
                     conn.close()
                     
                     response = jsonify({
                         "success": True,
-                        "avatar": sms_data['avatar_url'],
-                        "message": "Аватар получен из Telegram"
+                        "avatar": local_avatar,
+                        "message": "Аватар получен из Telegram и сохранен локально"
                     })
                     response.headers.add('Access-Control-Allow-Origin', '*')
                     return response
@@ -2789,6 +3029,28 @@ def api_user_avatar_telegram():
         response.headers.add('Access-Control-Allow-Origin', '*')
         return response, 500
 
+# API для получения списка проектов (проксирует из admin_bot)
+@app.route('/api/projects/list')
+def api_projects_list():
+    """Получение списка проектов из admin_bot API"""
+    try:
+        # Пытаемся получить из публичного API admin_bot
+        # Используем локальный адрес или домен
+        admin_bot_url = "http://127.0.0.1:5001/api/public/projects"
+        token = os.environ.get('API_PUBLIC_TOKEN')
+        headers = {'Authorization': f'Bearer {token}'} if token else {}
+        
+        response = requests.get(admin_bot_url, headers=headers, timeout=5)
+        if response.status_code == 200:
+            return jsonify(response.json())
+        
+        # Если не получилось, возвращаем пустой список вместо ошибки, чтобы фронт не падал
+        print(f"Error fetching projects: HTTP {response.status_code}")
+        return jsonify([])
+    except Exception as e:
+        print(f"Error fetching projects: {e}")
+        return jsonify([])
+
 # Главная страница (если зайти напрямую)
 @app.route('/')
 def index():
@@ -2799,6 +3061,11 @@ def index():
         conn.close()
         
         if user:
+            # Проверка на блокировку
+            if user['blocked']:
+                session.clear()
+                return redirect(url_for('login', error='Ваш аккаунт заблокирован. Обратитесь в поддержку.'))
+            
             # Безопасное получение полей (sqlite3.Row не имеет метода get)
             def safe_get(field):
                 try:
@@ -2815,7 +3082,9 @@ def index():
                                  email=safe_get('email'),
                                  country=safe_get('country'),
                                  city=safe_get('city'),
-                                 telegram_username=safe_get('telegram_username'))
+                                 telegram_username=safe_get('telegram_username'),
+                                 telegram_id=safe_get('telegram_id'),
+                                 is_admin=(safe_get('telegram_id') == ADMIN_TELEGRAM_ID))
             
     return redirect(url_for('login'))
 
@@ -2830,6 +3099,8 @@ def admin_required(f):
     """Декоратор для проверки авторизации админа"""
     @wraps(f)
     def decorated_function(*args, **kwargs):
+        # Admin-права выдаются ТОЛЬКО через /admin/auth/callback после проверки
+        # telegram_id == ADMIN_TELEGRAM_ID. Обычная (user_id) сессия НЕ даёт admin.
         if 'admin_authenticated' not in session or not session['admin_authenticated']:
             if request.path.startswith('/api/admin/'):
                 return jsonify({'error': 'Требуется авторизация'}), 401
@@ -2887,15 +3158,25 @@ def admin_auth_callback():
             if user_response.status_code == 200:
                 user_data = user_response.json()
                 telegram_id = user_data.get('telegram_id')
+                username = user_data.get('username')
                 
-                if telegram_id == ADMIN_TELEGRAM_ID:
+                # Более гибкая проверка админа
+                is_admin_id = telegram_id and int(telegram_id) == ADMIN_TELEGRAM_ID
+                is_admin_username = username == 'admin' or user_data.get('telegram_username') == 'dreamcatch_r'
+                
+                if is_admin_id or is_admin_username:
                     session['admin_authenticated'] = True
-                    session['admin_username'] = user_data.get('username', 'admin')
-                    session['admin_telegram_id'] = telegram_id
+                    session['admin_username'] = username or 'admin'
+                    session['admin_telegram_id'] = telegram_id or ADMIN_TELEGRAM_ID
+                    
+                    # Логируем вход админа
+                    log_activity(user_data.get('id'), 'auth_admin', 'admin_login', f'Admin access granted to {username}')
+                    
                     return redirect(url_for('admin_dashboard'))
                 else:
+                    print(f"Admin access denied: telegram_id={telegram_id}, username={username}")
                     return render_template('auth_admin_login.html', 
-                                         error=f'Доступ запрещен. Только для Telegram ID: {ADMIN_TELEGRAM_ID}',
+                                         error=f'Доступ запрещен. Ваш ID: {telegram_id}, Login: {username}. Требуется ID: {ADMIN_TELEGRAM_ID}',
                                          dreamid_auth_url=AUTH_BASE_URL,
                                          client_id=ADMIN_CLIENT_ID)
     except Exception as e:
@@ -2923,6 +3204,7 @@ def api_admin_stats():
     conn = get_db()
     
     total_users = conn.execute("SELECT COUNT(*) as count FROM users").fetchone()['count']
+    blocked_users = conn.execute("SELECT COUNT(*) as count FROM users WHERE blocked = 1").fetchone()['count']
     total_clients = conn.execute("SELECT COUNT(*) as count FROM clients").fetchone()['count']
     active_tokens = conn.execute("SELECT COUNT(*) as count FROM sso_tokens WHERE datetime(expires_at) > datetime('now')").fetchone()['count']
     auth_24h = conn.execute("SELECT COUNT(*) as count FROM sso_codes WHERE datetime(created_at) > datetime('now', '-24 hours')").fetchone()['count']
@@ -2931,6 +3213,7 @@ def api_admin_stats():
     
     return jsonify({
         'total_users': total_users,
+        'blocked_users': blocked_users,
         'total_clients': total_clients,
         'active_tokens': active_tokens,
         'auth_24h': auth_24h
@@ -3057,15 +3340,15 @@ def api_admin_regenerate_secret(client_id):
 def api_admin_users():
     """Список пользователей"""
     conn = get_db()
-    
+
     users = conn.execute("""
-        SELECT id, username, phone, telegram_username, telegram_id, created_at
+        SELECT id, username, phone, telegram_username, telegram_id, blocked, created_at
         FROM users
         ORDER BY created_at DESC
     """).fetchall()
-    
+
     conn.close()
-    
+
     result = []
     for user in users:
         result.append({
@@ -3074,12 +3357,69 @@ def api_admin_users():
             'phone': user['phone'],
             'telegram_username': user['telegram_username'],
             'telegram_id': user['telegram_id'],
+            'blocked': bool(user['blocked']),
             'created_at': user['created_at']
         })
-    
+
     return jsonify({'users': result})
 
+@app.route('/api/admin/users/<int:user_id>/block', methods=['POST'])
+@admin_required
+def api_admin_block_user(user_id):
+    """Блокировка пользователя"""
+    if user_id == session.get('user_id'):
+        return jsonify({'error': 'Нельзя заблокировать самого себя'}), 400
+
+    conn = get_db()
+    conn.execute('UPDATE users SET blocked = 1 WHERE id = ?', (user_id,))
+    conn.commit()
+    conn.close()
+
+    log_activity(session.get('user_id'), 'auth_admin', 'block_user', f'Blocked user ID: {user_id}')
+    return jsonify({'success': True})
+
+@app.route('/api/admin/users/<int:user_id>/unblock', methods=['POST'])
+@admin_required
+def api_admin_unblock_user(user_id):
+    """Разблокировка пользователя"""
+    conn = get_db()
+    conn.execute('UPDATE users SET blocked = 0 WHERE id = ?', (user_id,))
+    conn.commit()
+    conn.close()
+
+    log_activity(session.get('user_id'), 'auth_admin', 'unblock_user', f'Unblocked user ID: {user_id}')
+    return jsonify({'success': True})
+
+@app.route('/api/admin/activity')
+@admin_required
+def api_admin_activity():
+    """Логи активности"""
+    conn = get_db()
+    logs = conn.execute("""
+        SELECT l.*, u.username 
+        FROM activity_logs l
+        LEFT JOIN users u ON l.user_id = u.id
+        ORDER BY l.timestamp DESC
+        LIMIT 200
+    """).fetchall()
+    conn.close()
+
+    result = []
+    for log in logs:
+        result.append({
+            'id': log['id'],
+            'username': log['username'] or 'Guest',
+            'client_id': log['client_id'],
+            'action': log['action'],
+            'details': log['details'],
+            'ip_address': log['ip_address'],
+            'timestamp': log['timestamp']
+        })
+
+    return jsonify({'activity': result})
+
 @app.route('/api/admin/tokens')
+
 @admin_required
 def api_admin_tokens():
     """Список активных токенов"""

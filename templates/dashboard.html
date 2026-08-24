@@ -3,15 +3,22 @@
 {% block content %}
 <div class="dashboard-wrapper" id="dashboardView">
     <div class="dash-header">
-        <div>
-            <h2 style="font-size: 28px; font-weight: 600;">Привет 👋</h2>
-            <p style="color: var(--text-muted); font-size: 14px;">Все сервисы dreamPartners доступны.</p>
+        <div style="flex: 1; min-width: 0;">
+            <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                <h2 style="font-size: 28px; font-weight: 600; margin: 0;">Привет 👋</h2>
+                {% if is_admin %}
+                <a href="/admin" class="profile-btn-primary" style="text-decoration: none; padding: 6px 12px; font-size: 12px; border-radius: 8px; background: #000; white-space: nowrap;">
+                    <i class="ph ph-shield-check"></i> Админка
+                </a>
+                {% endif %}
+            </div>
+            <p style="color: var(--text-muted); font-size: 14px; margin-top: 4px;">Все сервисы dreamPartners доступны.</p>
         </div>
-        <div class="user-profile" onclick="openProfileModal()" style="cursor: pointer;" title="Управление профилем">
+        <div class="user-profile" onclick="openProfileModal()" style="cursor: pointer; flex-shrink: 0; margin-left: 12px;" title="Управление профилем">
             <div class="avatar" id="userAvatar" style="{% if avatar %}background-image: url('{{ avatar }}');{% else %}background-image: none;{% endif %} background-size: cover; background-position: center;">
                 {% if not avatar %}{{ username[0] | upper if username else 'U' }}{% endif %}
             </div>
-            <div style="display: flex; flex-direction: column; align-items: flex-start; margin-right: 8px;">
+            <div class="d-none d-sm-flex" style="display: flex; flex-direction: column; align-items: flex-start; margin-right: 8px;">
                 <span style="font-size: 14px; font-weight: 500;">{{ username }}</span>
                 {% if phone %}
                     <span style="font-size: 11px; color: var(--text-muted);">{{ phone }}</span>
@@ -337,203 +344,11 @@
     </div>
     {% endif %}
 
-    <div class="grid-container">
-        
-        <!-- 1. dreamGPT AI (Главная карточка) -->
-        <div class="app-card wide" data-link="https://ai.dreampartners.online" tabindex="0" role="link">
-            <div class="app-icon"><i class="ph ph-robot"></i></div>
-            <div class="app-info">
-                <h3>dreamGPT AI</h3>
-                <p>AI-платформа: GPT-4, работа с документами и памятью.</p>
-                <div style="margin-top: 8px; font-size: 12px; opacity: 0.7;">
-                    <a href="https://ai.dreampartners.online" target="_blank" style="color: inherit; text-decoration: none; border-bottom: 1px solid rgba(255,255,255,0.3);">ai.dreampartners.online</a>
-                    <span style="margin: 0 6px;">|</span>
-                    <a href="https://t.me/dreamgptbot" target="_blank" style="color: inherit; text-decoration: none; border-bottom: 1px solid rgba(255,255,255,0.3);">@dreamgptbot</a>
-                </div>
-            </div>
-        </div>
-
-        <!-- 2. dreamPartners CPA -->
-        <div class="app-card" data-link="https://dreampartners.ru" tabindex="0" role="link">
-            <div class="app-icon"><i class="ph ph-globe"></i></div>
-            <div class="app-info">
-                <h3>dreamPartners</h3>
-                <p>CPA Платформа - доход до 2 млн рублей в месяц</p>
-                <div style="margin-top: 8px; font-size: 12px; opacity: 0.7;">
-                    <a href="https://dreampartners.ru" target="_blank" style="color: inherit; text-decoration: none; border-bottom: 1px solid rgba(9,9,11,0.2);">dreampartners.ru</a>
-                    <span style="margin: 0 6px;">|</span>
-                    <a href="https://t.me/dreampartnersrobot" target="_blank" style="color: inherit; text-decoration: none; border-bottom: 1px solid rgba(9,9,11,0.2);">@dreampartnersrobot</a>
-                </div>
-            </div>
-        </div>
-
-        <!-- 3. SwagPlayer -->
-        <div class="app-card" data-link="https://swag.dreampartners.online" tabindex="0" role="link">
-            <div class="app-icon"><i class="ph ph-music-notes"></i></div>
-            <div class="app-info">
-                <h3>SwagPlayer</h3>
-                <p>Музыкальный сервис</p>
-                <div style="margin-top: 8px; font-size: 12px; opacity: 0.7;">
-                    <a href="https://swag.dreampartners.online" target="_blank" style="color: inherit; text-decoration: none; border-bottom: 1px solid rgba(9,9,11,0.2);">swag.dreampartners.online</a>
-                    <span style="margin: 0 6px;">|</span>
-                    <a href="https://t.me/swagplayerobot" target="_blank" style="color: inherit; text-decoration: none; border-bottom: 1px solid rgba(9,9,11,0.2);">@swagplayerobot</a>
-                </div>
-            </div>
-        </div>
-
-        <!-- 4. dreamDownloader -->
-        <div class="app-card" data-link="https://download.dreampartners.online" tabindex="0" role="link">
-            <div class="app-icon"><i class="ph ph-download-simple"></i></div>
-            <div class="app-info">
-                <h3>dreamDownloader</h3>
-                <p>Загрузчик медиа</p>
-                <div style="margin-top: 8px; font-size: 12px; opacity: 0.7;">
-                    <a href="https://download.dreampartners.online" target="_blank" style="color: inherit; text-decoration: none; border-bottom: 1px solid rgba(9,9,11,0.2);">download.dreampartners.online</a>
-                    <span style="margin: 0 6px;">|</span>
-                    <a href="https://t.me/dreamdownload_bot" target="_blank" style="color: inherit; text-decoration: none; border-bottom: 1px solid rgba(9,9,11,0.2);">@dreamdownload_bot</a>
-                </div>
-            </div>
-        </div>
-
-        <!-- 5. dreamSMS -->
-        <div class="app-card" data-link="https://sms.dreampartners.online" tabindex="0" role="link">
-            <div class="app-icon"><i class="ph ph-chat-text"></i></div>
-            <div class="app-info">
-                <h3>dreamSMS</h3>
-                <p>SMS API сервис</p>
-                <div style="margin-top: 8px; font-size: 12px; opacity: 0.7;">
-                    <a href="https://sms.dreampartners.online" target="_blank" style="color: inherit; text-decoration: none; border-bottom: 1px solid rgba(9,9,11,0.2);">sms.dreampartners.online</a>
-                    <span style="margin: 0 6px;">|</span>
-                    <a href="https://t.me/dream_smsbot" target="_blank" style="color: inherit; text-decoration: none; border-bottom: 1px solid rgba(9,9,11,0.2);">@dream_smsbot</a>
-                </div>
-            </div>
-        </div>
-
-        <!-- 6. dream MP3Tag -->
-        <div class="app-card" data-link="https://mp3.dreampartners.online" tabindex="0" role="link">
-            <div class="app-icon"><i class="ph ph-tag"></i></div>
-            <div class="app-info">
-                <h3>dream MP3Tag</h3>
-                <p>Аудио редактор</p>
-                <div style="margin-top: 8px; font-size: 12px; opacity: 0.7;">
-                    <a href="https://mp3.dreampartners.online" target="_blank" style="color: inherit; text-decoration: none; border-bottom: 1px solid rgba(9,9,11,0.2);">mp3.dreampartners.online</a>
-                    <span style="margin: 0 6px;">|</span>
-                    <a href="https://t.me/mp3tag_robot" target="_blank" style="color: inherit; text-decoration: none; border-bottom: 1px solid rgba(9,9,11,0.2);">@mp3tag_robot</a>
-                </div>
-            </div>
-        </div>
-
-        <!-- 7. dreamVPN -->
-        <div class="app-card" data-link="https://t.me/dreamvpnprobot" tabindex="0" role="link">
-            <div class="app-icon"><i class="ph ph-shield-check"></i></div>
-            <div class="app-info">
-                <h3>dreamVPN</h3>
-                <p>VPN сервис с умным балансированием</p>
-                <div style="margin-top: 8px; font-size: 12px; opacity: 0.7;">
-                    <a href="https://t.me/dreamvpnprobot" target="_blank" style="color: inherit; text-decoration: none; border-bottom: 1px solid rgba(9,9,11,0.2);">@dreamvpnprobot</a>
-                </div>
-            </div>
-        </div>
-
-        <!-- 8. dreamShare -->
-        <div class="app-card" data-link="https://share.dreampartners.online" tabindex="0" role="link">
-            <div class="app-icon"><i class="ph ph-share-network"></i></div>
-            <div class="app-info">
-                <h3>dreamShare</h3>
-                <p>Быстрая передача файлов между устройствами</p>
-                <div style="margin-top: 8px; font-size: 12px; opacity: 0.7;">
-                    <a href="https://share.dreampartners.online" target="_blank" style="color: inherit; text-decoration: none; border-bottom: 1px solid rgba(9,9,11,0.2);">share.dreampartners.online</a>
-                </div>
-            </div>
-        </div>
-
-        <!-- 9. dreamDisk -->
-        <div class="app-card" data-link="https://disk.dreampartners.online" tabindex="0" role="link">
-            <div class="app-icon"><i class="ph ph-hard-drives"></i></div>
-            <div class="app-info">
-                <h3>dreamDisk</h3>
-                <p>Хранилище файлов с drag & drop</p>
-                <div style="margin-top: 8px; font-size: 12px; opacity: 0.7;">
-                    <a href="https://disk.dreampartners.online" target="_blank" style="color: inherit; text-decoration: none; border-bottom: 1px solid rgba(9,9,11,0.2);">disk.dreampartners.online</a>
-                </div>
-            </div>
-        </div>
-
-        <!-- 10. dreamPost -->
-        <div class="app-card" data-link="https://post.dreampartners.online" tabindex="0" role="link">
-            <div class="app-icon"><i class="ph ph-article"></i></div>
-            <div class="app-info">
-                <h3>dreamPost</h3>
-                <p>Платформа для публикации статей</p>
-                <div style="margin-top: 8px; font-size: 12px; opacity: 0.7;">
-                    <a href="https://post.dreampartners.online" target="_blank" style="color: inherit; text-decoration: none; border-bottom: 1px solid rgba(9,9,11,0.2);">post.dreampartners.online</a>
-                </div>
-            </div>
-        </div>
-
-    </div>
-
-    <div class="integration-toggle">
-        <button type="button" onclick="toggleIntegrations()">Интеграции и API</button>
-    </div>
-    <div class="integration-section" id="integrationSection">
-        <div class="integration-header">
-            <div class="integration-title">Интеграции Dream Partners</div>
-            <div class="integration-subtitle">Открытые API, которые можно внедрять прямо сейчас.</div>
-        </div>
-        <div class="integration-grid">
-            <div class="integration-card" data-link="https://auth.dreampartners.online/docs">
-                <div class="integration-badge">01</div>
-                <div class="integration-card-body">
-                    <div class="integration-pill">dreamSSO (dreamID)</div>
-                    <div class="integration-card-title">Единый вход</div>
-                    <p>Authorization Code Flow → Bearer (30 дней), профиль по Authorization: Bearer.</p>
-                    <div class="integration-meta">
-                        <span>auth.dreampartners.online/docs</span>
-                        <span>OAuth2 / Bearer</span>
-                    </div>
-                </div>
-            </div>
-            <div class="integration-card" data-link="https://sms.dreampartners.online">
-                <div class="integration-badge">02</div>
-                <div class="integration-card-body">
-                    <div class="integration-pill">dreamSMS</div>
-                    <div class="integration-card-title">OTP и уведомления</div>
-                    <p>Приём OTP/SMS, пуши и webhooks для проверки кодов в ваших сервисах.</p>
-                    <div class="integration-meta">
-                        <span>sms.dreampartners.online</span>
-                        <span>REST / Webhook</span>
-                    </div>
-                </div>
-            </div>
-            <div class="integration-card" data-link="https://download.dreampartners.online">
-                <div class="integration-badge">03</div>
-                <div class="integration-card-body">
-                    <div class="integration-pill">dreamDownloader</div>
-                    <div class="integration-card-title">Видео → текст → summary</div>
-                    <p>Скачивание, транскрипт и краткое резюме; JSON ответ или webhook.</p>
-                    <div class="integration-meta">
-                        <span>download.dreampartners.online</span>
-                        <span>Webhook / JSON</span>
-                    </div>
-                </div>
-            </div>
-            <div class="integration-card" data-link="https://api.dreampartners.online/icons/">
-                <div class="integration-badge">04</div>
-                <div class="integration-card-body">
-                    <div class="integration-pill">Icons API</div>
-                    <div class="integration-card-title">Фавиконки по URL</div>
-                    <p>Отдаёт PNG/ICO/SVG для сайта по ссылке — удобно для каталогов и превью.</p>
-                    <div class="integration-meta">
-                        <span>api.dreampartners.online/icons</span>
-                        <span>HTTP / Cacheable</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="founder-note">
-            <span>Создал и поддерживаю все сервисы здесь. Нужна интеграция? Пишите.</span>
-            <a href="https://dreamcatcher.ru/dev" target="_blank" rel="noopener">Обо мне</a>
+    <div class="grid-container" id="projectsGrid">
+        <!-- Projects will be loaded here dynamically -->
+        <div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text-muted);">
+            <i class="ph ph-spinner" style="font-size: 32px; animation: spin 1s linear infinite;"></i>
+            <p style="margin-top: 12px;">Загрузка проектов...</p>
         </div>
     </div>
 
@@ -1006,26 +821,12 @@
         { y: 0, opacity: 1, duration: 0.6, ease: 'power3.out' }
     );
 
-    // 2. Cards Animation
-    tl.fromTo('.app-card', 
-        { y: 60, opacity: 0 },
-        { 
-            y: 0, 
-            opacity: 1, 
-            duration: 0.8, 
-            stagger: 0.1, 
-            ease: 'cubic-bezier(0.16, 1, 0.3, 1)',
-            clearProps: 'transform'
-        },
-        "-=0.4"
-    );
-
     // Clickable cards (open service URLs)
     function setupCardLinks() {
         const cards = document.querySelectorAll('.app-card[data-link]');
         cards.forEach(card => {
             const url = card.getAttribute('data-link');
-            if (!url) return;
+            if (!url || url === '#') return;
             card.addEventListener('click', (e) => {
                 if (e.target.closest('a, button')) return;
                 window.open(url, '_blank');
@@ -1262,5 +1063,86 @@
     }
     
     loadProfile();
+
+    // Load Projects from API
+    async function loadProjectsList() {
+        const grid = document.getElementById('projectsGrid');
+        try {
+            const response = await fetch('/api/projects/list');
+            const projects = await response.json();
+            
+            if (!projects || projects.length === 0) {
+                grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text-muted);">Проекты не найдены.</div>';
+                return;
+            }
+
+            let html = '';
+            // Filter non-hidden projects (just in case)
+            const visibleProjects = projects.filter(p => !p.hidden);
+            
+            visibleProjects.forEach((p, index) => {
+                const isWide = index === 0; // Make first project wide
+                const rawIcon = p.icon || 'globe';
+                const pIcon = getPhosphorIcon(rawIcon);
+                
+                html += `
+                <div class="app-card ${isWide ? 'wide' : ''}" data-link="${p.url || '#'}" tabindex="0" role="link">
+                    <div class="app-icon"><i class="ph ph-${pIcon}"></i></div>
+                    <div class="app-info">
+                        <h3>${p.title}</h3>
+                        <p>${p.desc || ''}</p>
+                        <div style="margin-top: 8px; font-size: 12px; opacity: 0.7;">
+                            ${p.url ? `<a href="${p.url}" target="_blank" style="color: inherit; text-decoration: none; border-bottom: 1px solid ${isWide ? 'rgba(255,255,255,0.3)' : 'rgba(9,9,11,0.2)'};">${new URL(p.url).hostname}</a>` : ''}
+                        </div>
+                    </div>
+                </div>`;
+            });
+            
+            grid.innerHTML = html;
+            setupCardLinks(); // Re-bind click events
+            
+            // Animation for new cards
+            gsap.fromTo('#projectsGrid .app-card', 
+                { y: 30, opacity: 0 },
+                { y: 0, opacity: 1, duration: 0.5, stagger: 0.05, ease: 'power2.out' }
+            );
+
+        } catch (e) {
+            console.error('Error loading projects:', e);
+            grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: #ef4444;">Ошибка загрузки проектов.</div>';
+        }
+    }
+
+    // Map some FA icons to Phosphor icons
+    function getPhosphorIcon(iconName) {
+        const icon = iconName.replace('fa-', '').replace('fa-solid ', '').replace('fa-brands ', '');
+        const mapping = {
+            'globe': 'globe',
+            'robot': 'robot',
+            'music': 'music-notes',
+            'download': 'download-simple',
+            'sms': 'chat-text',
+            'comment-sms': 'chat-text',
+            'tag': 'tag',
+            'shield': 'shield-check',
+            'share': 'share-network',
+            'hard-drive': 'hard-drives',
+            'article': 'article',
+            'cloud': 'cloud',
+            'brain': 'brain',
+            'credit-card': 'credit-card',
+            'fingerprint': 'fingerprint',
+            'network-wired': 'tree-structure',
+            'sliders': 'sliders',
+            'icons': 'paint-brush-broad',
+            'share-nodes': 'share-network',
+            'pen-nib': 'pen-nib',
+            'envelope': 'envelope',
+            'server': 'hard-drives'
+        };
+        return mapping[icon] || 'globe';
+    }
+
+    loadProjectsList();
 </script>
 {% endblock %}
